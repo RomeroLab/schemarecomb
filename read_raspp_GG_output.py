@@ -22,3 +22,7 @@ plt.show()
 accepted_libraries = {k:v for (k,v) in l.items() if k[0] < energy_threshold and k[1] > M_threshold}
 
 print(accepted_libraries)
+
+##set lib = l key of chosen library 
+#chosen_lib = (lib, l[lib])
+#pickle.dump(chosen_lib, open('chosen_lib.p','wb'))

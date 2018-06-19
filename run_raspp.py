@@ -1,18 +1,21 @@
 import raspp_tools
 import pickle
-import sequence_tools
 
 # define the library properties min block length, max block length, number of blocks, and parents
 minBL = 40
 maxBL = 400
 num_bl = 8
 
-names,AAseqs = sequence_tools.read_fasta('sequences.fa')
+alignment_fn = 'alignment.p'
+contacts_fn = 'contacts.p'
+libraries_fn = 'libraries.p'
 
-#alignment = sequence_tools.muscle_align(AAseqs)
-alignment = sequence_tools.read_fasta('alignment.fa')
+alignment = pickle.load(open('alignment.p', 'rb'))
+contacts=pickle.load(open('contacts.p', 'rb'))
 
-contacts=pickle.load(open('contacts.p','rb'))
+alignment = pickle.load(open(alignment_fn, 'rb'))
+
+contacts=pickle.load(open(contacts_fn, 'rb'))
 
 # A breakpoint specifies the first position of a new block. 
 breakpoints = raspp_tools.find_GG_breakpoints(alignment)
@@ -32,11 +35,9 @@ print('\n Updating M', flush=True)
 # Add M values to the libraries dictionary
 raspp_tools.update_M(libraries,alignment)
 
-pickle.dump(libraries, open("libraries.p","wb"))
+pickle.dump(libraries, open(libraries_fn, 'wb'))
 
-pickle.dump(alignment, open("alignment.p","wb"))
-
-#Requires 'normalized_ligation_counts_18h_37C.p' file to be in same dir,
+#Requires 'normalized_ligation_counts_18h_37C.p' file to be in same dir
 libraries = raspp_tools.update_GG_prob(libraries, alignment)
 
-pickle.dump(libraries, open("gg_libraries.p","wb"))
+pickle.dump(libraries, open('gg_' + libraries_fn, 'wb'))

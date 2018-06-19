@@ -4,6 +4,7 @@ import numpy
 import itertools
 from random import choice
 import sequence_tools
+import pickle
 
 
 code = {'AAA': 'K','AAC': 'N','AAG': 'K','AAT': 'N','ACA': 'T','ACC': 'T','ACG': 'T','ACT': 'T','AGA': 'R','AGC': 'S','AGG': 'R','AGT': 'S','ATA': 'I','ATC': 'I','ATG': 'M','ATT': 'I',
@@ -18,6 +19,12 @@ rare = ('ATA', 'AGG', 'TCG', 'ACG', 'AGA', 'GGA', 'CTA', 'GGG', 'CCC', 'CGG', 'C
 aminos = set(code.values())
 rev_code = dict((a,tuple([k for k in code.keys() if code[k]==a])) for a in aminos)
 rev_code['-']=()
+
+complement = {'A':'T','C':'G','G':'C','T':'A'}
+
+
+def complementary_sequence(sequence):
+    return ''.join(reversed([complement[bp] for bp in sequence]))
 
 
 def NTseqs2CDNalign(NTseqs):
@@ -37,7 +44,6 @@ def NTseqs2CDNalign(NTseqs):
     CDNalign = tuple(zip(*CDNs))
     return AAalign,CDNalign
 
-
 def find_all_breakpoints(alignment):
     """Might be unecessary--but reminds us what we need for breakpoints """
     # a breakpoint specifies the first postion of the new block.  The last position of the previous block is bp-1
@@ -45,41 +51,61 @@ def find_all_breakpoints(alignment):
     return breakpoints
 
 
-def find_GG_breakpoints(alignment,overlap=4):
-    """Finds all breakpoints that can be cloned with GoldenGate (i.e. overlap of 4 or more)"""
-    # a breakpoint specifies the first postion of the new block.  The last position of the previous block is bp-1
+def acceptable_overhang(overhang, normalized_ligation_counts, vector_overhangs, threshold):
+    """Returns true if overhang is not complementary, full-GC, below threshold, or is not a vector_overhang."""
     
-    breakpoints = dict(((0,'start'),(len(alignment),'end'))) # start with beg and end
+    if overhang == complementary_sequence(overhang):
+        return False
+    
+    if 'A' not in overhang and 'T' not in overhang:
+        return False
+    
+    if normalized_ligation_counts[overhang][complementary_sequence(overhang)] < threshold:
+        return False
+    
+    if overhang in vector_overhangs or complementary_sequence(overhang) in vector_overhangs:
+        return False
+    
+    return True
 
-    for i in range(1,len(alignment)):
-        AA1 = set(alignment[i-1]) # the last postion of block
-        AA2 = set(alignment[i]) # the first position of the next block
+
+def find_GG_breakpoints(alignment, vector_overhangs=['TATG','TGAG'], threshold=245, ligation_counts_fn='normalized_ligation_counts_18h_37C.p', overlap=4):
+    """Marks breakpoints as possible GG sites if it has a possible GG overhang."""
+    normalized_ligation_counts = pickle.load(open(ligation_counts_fn,'rb'))
+    
+    breakpoints = [0] # start with beg and end
+
+    for breakpoint_num in range(1,len(alignment)):
+        breakpoint_good = False
+        AA1 = set(alignment[breakpoint_num-1]) # the last postion of block
+        AA2 = set(alignment[breakpoint_num]) # the first position of the next block
+        
         if '-' not in AA1 and '-' not in AA2: # can't recombine in a loop
             combo1 = set(itertools.product(*[rev_code[p] for p in AA1])) # all combinations of codons that could give AAs at pos1
             combo2 = set(itertools.product(*[rev_code[p] for p in AA2])) # all combinations of codons that could give AAs at pos2
-
-            cdn_options = []
+            
             for c1 in combo1:
                 for c2 in combo2:
                     end = len(''.join(['1' if len(set(l))==1 else '0' for l in zip(*c1)]).split('0')[-1]) # number of overlapping bases at end of c1
                     beg = len(''.join(['1' if len(set(l))==1 else '0' for l in zip(*c2)]).split('0')[0]) # number of overlapping bases at beginning of c2
-
+                        
                     if end+beg >= overlap:
-                        # now determine the best codons to use--calculate the library's average CAI at that postion (requires going back to alingment)
-                        score1 = dict((code[c],CodonUsage.SharpEcoliIndex[c]) for c in c1)
-                        cdn1_score = sum([score1[p] for p in alignment[i-1]])
-
-                        score2 = dict((code[c],CodonUsage.SharpEcoliIndex[c]) for c in c2)
-                        cdn2_score = sum([score2[p] for p in alignment[i]])
-
-                        cdn_options.append((cdn1_score+cdn2_score,c1,c2))
-
-            if len(cdn_options)>0:
-
-                score,c1,c2 = max(cdn_options)
-                c1 = dict((sequence_tools.code[c],c) for c in c1)
-                c2 = dict((sequence_tools.code[c],c) for c in c2)
-                breakpoints[i] = (c1,c2)
+                        string = c1[0]+c2[0]
+                        
+                        
+                        for i in range(3-end,beg):
+                            if acceptable_overhang(string[i:i+4], normalized_ligation_counts, vector_overhangs, threshold):
+                                breakpoints.append(breakpoint_num)
+                                breakpoint_good = True
+                                break
+                    
+                    if breakpoint_good == True:
+                        break
+                    
+                if breakpoint_good == True:
+                    break
+                
+    breakpoints.append(len(alignment))
 
     return breakpoints
 
@@ -180,6 +206,96 @@ def write_libraries_to_csv(libraries,filename='output.csv'):
 
 
 
+def possible_GG_site(breakpoint_num, alignment, normalized_ligation_counts, vector_overhangs, threshold, overlap=4): 
+    """Determines whether there is a possible GG overlap at breakpoint_num."""
+    
+    possible_sites = []
+    
+    AA1 = set(alignment[breakpoint_num-1]) # the last postion of block
+    AA2 = set(alignment[breakpoint_num]) # the first position of the next block
+    
+    if '-' not in AA1 and '-' not in AA2: # can't recombine in a loop
+        combo1 = set(itertools.product(*[rev_code[p] for p in AA1])) # all combinations of codons that could give AAs at pos1
+        combo2 = set(itertools.product(*[rev_code[p] for p in AA2])) # all combinations of codons that could give AAs at pos2
+        
+        for c1 in combo1:
+            for c2 in combo2:
+                end = len(''.join(['1' if len(set(l))==1 else '0' for l in zip(*c1)]).split('0')[-1]) # number of overlapping bases at end of c1
+                beg = len(''.join(['1' if len(set(l))==1 else '0' for l in zip(*c2)]).split('0')[0]) # number of overlapping bases at beginning of c2
+                    
+                if end+beg >= overlap:
+                    string = c1[0]+c2[0]
+                    
+                    
+                    for i in range(3-end,beg):
+                        if (i,string[i:i+4]) not in possible_sites and acceptable_overhang(string[i:i+4], normalized_ligation_counts, vector_overhangs, threshold):
+                            possible_sites.append((i,string[i:i+4]))
+
+    return possible_sites
+
+def calculate_GG_prob(list_of_overhangs, normalized_ligation_counts):
+    """Calculates the probability of correct GG ligation given a list of overhangs."""
+    complements = []
+    for oh in list_of_overhangs:
+        complements.append(complementary_sequence(oh))
+    
+    all_overhangs = list_of_overhangs + list(reversed(complements))
+    
+    overhang_set_counts = []
+    for oh1 in all_overhangs:
+        overhang_set_counts_row = []
+        for oh2 in reversed(all_overhangs):
+            overhang_set_counts_row.append(normalized_ligation_counts[oh1][oh2])
+        overhang_set_counts.append(overhang_set_counts_row)
+
+    GG_prob = 1
+    for i in range(len(overhang_set_counts)):
+        GG_prob *= (overhang_set_counts[i][i] / sum(overhang_set_counts[i]))
+    
+    return GG_prob
+    
+
+def update_GG_prob(libraries, alignment, vector_overhangs=['TATG','TGAG'], threshold=245, ligation_counts_fn='normalized_ligation_counts_18h_37C.p'):
+    """Updates libraries with the set of overhangs with highest GG_prob."""
+    normalized_ligation_counts = pickle.load(open(ligation_counts_fn,'rb'))
+    
+    all_possible_sites = {}
+    for breakpoint_num in range(1,len(alignment)):
+        all_possible_sites.update({breakpoint_num : possible_GG_site(breakpoint_num, alignment, normalized_ligation_counts, vector_overhangs, threshold)})
+
+    for itr, lib in enumerate(libraries):              
+        lib_valid = True
+        lib_possible_sites = {}
+        for breakpoint_num in lib[1:-1]:
+            if len(all_possible_sites[breakpoint_num]) == 0:
+                lib_valid = False
+            lib_possible_sites.update({breakpoint_num : all_possible_sites[breakpoint_num]})
+
+        if not lib_valid:
+            libraries[lib].update({'GG_prob':0})
+            print('not valid')
+            continue
+
+        max_p = 0
+        max_set = ()
+        
+        prod = list(itertools.product(*lib_possible_sites.values()))
+        print('%i out of %i libraries: %i possible GG sites combinations' % (itr, len(libraries), len(prod)), flush=True)
+
+        for s in prod:
+            p = calculate_GG_prob(list(list(zip(*s))[1]) + vector_overhangs, normalized_ligation_counts)
+            if p > max_p:
+                max_p = p
+                max_set = s
+                if p == 1:
+                    break
+            
+        libraries[lib].update({'GG_prob':max_p})
+        if libraries[lib]['GG_prob'] != 0:
+            libraries[lib].update({'GG_sites':max_set})
+
+    print("Done updating GG_prob")        
+    return libraries
 
 
 #### FUNCTIONS FOR GENERATING LIBRARIES ####  #### FUNCTIONS FOR GENERATING LIBRARIES ####  #### FUNCTIONS FOR GENERATING LIBRARIES ####  #### FUNCTIONS FOR GENERATING LIBRARIES ####  #### FUNCTIONS FOR GENERATING LIBRARIES ####  #### FUNCTIONS FOR GENERATING LIBRARIES ####  #### FUNCTIONS FOR GENERATING LIBRARIES ####  #### FUNCTIONS FOR GENERATING LIBRARIES ####  #### FUNCTIONS FOR GENERATING LIBRARIES ####  
@@ -188,6 +304,8 @@ def write_libraries_to_csv(libraries,filename='output.csv'):
 
 def shortest_path_recombination(num_bl,blocks,E_matrix,verbose=False):
     """this version scans over all pairs of minBL and maxBL.  This is very slow, but more thorough.  At least the memory requirements are small: if you give it time it will finish"""
+    print('Entering shortest_path_recombination',flush=True)
+
     block_len = dict((bl,bl[1]-bl[0]) for bl in blocks)
     block_energy = dict((bl,E_matrix[bl[0]:bl[1],bl[1]:].sum()) for bl in blocks)
 
@@ -198,16 +316,21 @@ def shortest_path_recombination(num_bl,blocks,E_matrix,verbose=False):
     G = networkx.digraph.DiGraph()
     libraries = dict()
 
+    print('Loop 1', flush=True)
+
     # build in the first num_bl-1 blocks, node = (bl,(start,end)), and edges are added between compatible nodes: (bl,(start,end)) and (bl+1,(end,bl2end))
     G.add_node((0,(0,0)))
     for bl in range(1,num_bl):
-        previous = set(n for n in G.nodes_iter() if (n[0]+1)==bl)
+#        print('\r%i remaining out of %i      ' % (bl, num_bl), flush=True, end='')
+        previous = set(n for n in G if (n[0]+1)==bl)
         for node in previous:
             G.add_weighted_edges_from([(node,(bl,b),block_energy[b]) for b in blocks if node[1][1]==b[0]])
 
+    print('\nLoop 2', flush=True)
+
     # add in last block so that it ends exactly at align_len
     bl += 1 
-    previous = set(n for n in G.nodes_iter() if (n[0]+1)==bl)
+    previous = set(n for n in G if (n[0]+1)==bl)
     for node in previous:
         if (node[1][1],align_len) in blocks:
             G.add_edge(node,(bl,(node[1][1],align_len)), weight=block_energy[(node[1][1],align_len)])
@@ -219,15 +342,20 @@ def shortest_path_recombination(num_bl,blocks,E_matrix,verbose=False):
     libraries[tuple([n[1][1] for n in path[:-1]])] = {'energy':energy}
     if verbose: print(''.join([str(n[1][1]).rjust(7) for n in path[:-1]]),': energy = %0.4f'%energy)
 
+    print('Loop 3', flush=True)
+     
     # scan over all minBL+maxBL combinations
     masterG = G.copy()
-    for min_sub in range((align_len/num_bl)-minBL): # scan over min block sizes from minBL to seq_len/num_blocks
+    for min_sub in range(int((align_len/num_bl))-minBL): # scan over min block sizes from minBL to seq_len/num_blocks
+#        print('\r%i remaining out of %i      ' % (min_sub, int((align_len/num_bl))-minBL), flush=True, end='')
         G = masterG.copy()
         remove = set(b for b in blocks if block_len[b]<=(minBL+min_sub))
-        G.remove_nodes_from([n for n in G.nodes_iter() if n[1] in remove])
+        G.remove_nodes_from([n for n in G if n[1] in remove])
         for max_sub in range(10000): # scan over max block sizes from maxBL till it can't solve the SPP
+#            if min_sub > int((align_len/num_bl))-minBL - 2:
+#                print('\rmax_sub = %i' % max_sub,flush=True,end='')
             remove = set(b for b in blocks if block_len[b]>=(maxBL-max_sub))
-            G.remove_nodes_from([n for n in G.nodes_iter() if n[1] in remove])
+            G.remove_nodes_from([n for n in G if n[1] in remove])
             try:
                 path = networkx.dijkstra_path(G,(0,(0,0)),(num_bl+1,(align_len,align_len)))
                 energy = sum([G.get_edge_data(path[i],path[i+1])['weight'] for i in range(len(path)-1)])
@@ -235,6 +363,8 @@ def shortest_path_recombination(num_bl,blocks,E_matrix,verbose=False):
                 if verbose: print(''.join([str(n[1][1]).rjust(7) for n in path[:-1]]),': energy = %0.4f'%energy)
             except: # this happens once there are no paths
                 break
+            
+    print('\n')
 
     return libraries
 
@@ -251,16 +381,20 @@ def fast_shortest_path_recombination(num_bl,blocks,E_matrix,verbose=False):
     G = networkx.digraph.DiGraph()
     libraries = dict()
 
+    print('Loop 1', flush=True)
+
     # build in the first num_bl-1 blocks, node = (bl,(start,end)), and edges are added between compatible nodes: (bl,(start,end)) and (bl+1,(end,bl2end))
     G.add_node((0,(0,0)))
     for bl in range(1,num_bl):
-        previous = set(n for n in G.nodes_iter() if (n[0]+1)==bl)
+        previous = set(n for n in G if (n[0]+1)==bl)
         for node in previous:
             G.add_weighted_edges_from([(node,(bl,b),block_energy[b]) for b in blocks if node[1][1]==b[0]])
 
+    print('Loop 2', flush=True)
+
     # add in last block so that it ends exactly at align_len
     bl += 1 
-    previous = set(n for n in G.nodes_iter() if (n[0]+1)==bl)
+    previous = set(n for n in G if (n[0]+1)==bl)
     for node in previous:
         if (node[1][1],align_len) in blocks:
             G.add_edge(node,(bl,(node[1][1],align_len)), weight=block_energy[(node[1][1],align_len)])
@@ -273,11 +407,14 @@ def fast_shortest_path_recombination(num_bl,blocks,E_matrix,verbose=False):
     if verbose: print(''.join([str(n[1][1]).rjust(7) for n in path[:-1]]),': energy = %0.4f'%energy)
 
     masterG = G.copy()
+    
+    print('Loop 3', flush=True)
 
     # make the shortest allowed block incrementally larger
     for sub in range(10000):
+        print('\r%i remaining out of %i      ' % (sub, 10000), flush=True, end='')
         remove = set(b for b in blocks if block_len[b]==minBL+sub)
-        G.remove_nodes_from([n for n in G.nodes_iter() if n[1] in remove])
+        G.remove_nodes_from([n for n in G if n[1] in remove])
         try:
             path = networkx.dijkstra_path(G,(0,(0,0)),(num_bl+1,(align_len,align_len)))
             energy = sum([G.get_edge_data(path[i],path[i+1])['weight'] for i in range(len(path)-1)])
@@ -285,12 +422,15 @@ def fast_shortest_path_recombination(num_bl,blocks,E_matrix,verbose=False):
             if verbose: print(''.join([str(n[1][1]).rjust(7) for n in path[:-1]]),': energy = %0.4f'%energy)
         except: # this happens once there are no paths
             break
+
+    print('\nLoop 4', flush=True)
 
     G = masterG
     # make the largest allowed block incrementally smaller
     for sub in range(10000):
+        print('\r%i remaining out of %i      ' % (sub, 10000), flush=True, end='')
         remove = set(b for b in blocks if block_len[b]==maxBL-sub)
-        G.remove_nodes_from([n for n in G.nodes_iter() if n[1] in remove])
+        G.remove_nodes_from([n for n in G if n[1] in remove])
         try:
             path = networkx.dijkstra_path(G,(0,(0,0)),(num_bl+1,(align_len,align_len)))
             energy = sum([G.get_edge_data(path[i],path[i+1])['weight'] for i in range(len(path)-1)])
@@ -298,6 +438,7 @@ def fast_shortest_path_recombination(num_bl,blocks,E_matrix,verbose=False):
             if verbose: print(''.join([str(n[1][1]).rjust(7) for n in path[:-1]]),': energy = %0.4f'%energy)
         except: # this happens once there are no paths
             break
+    print()
     return libraries
 
 
@@ -409,7 +550,6 @@ def score_GG_overlaps(seqs):
     return score
 
 
-
 def design_GG_constructs(CDNalign,breakpoints,library,vector_overlaps = ['TATG','TGAG']): # note:  # this is the start and stop overlaps from pET22
     """This function takes in a library and designs the Golden Gate constructs for ordering.  Assumes 4 bp overlaps and BsaI digestion"""
 
@@ -519,16 +659,9 @@ def design_GG_constructs(CDNalign,breakpoints,library,vector_overlaps = ['TATG',
     return blockNTseqs
 
 
-
 def print_GG_library(blockNTseqs):
     """Prints a GoldenGate library to fasta for ordering"""
     for i in range(len(blockNTseqs)):
         for j in range(len(blockNTseqs[1])):
             print('>b%ip%i'%(i,j))
             print(blockNTseqs[i][j].replace('-','')+'\n')
-
-
-
-
-
-

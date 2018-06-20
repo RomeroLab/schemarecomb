@@ -1,10 +1,10 @@
 import pickle
 import matplotlib.pyplot as plt
 
-l = pickle.load(open('libraries_gg.p','rb'))
+l = pickle.load(open('20180612_libraries_gg.p','rb'))
 
-M_threshold = 0
-energy_threshold = 1000
+M_threshold = 177
+energy_threshold = 43
 
 data_points = [(l[lib]['energy'],l[lib]['M'],l[lib]['GG_prob']) 
             for lib in l.keys() if l[lib]['energy'] < energy_threshold and l[lib]['M'] > M_threshold]
@@ -18,8 +18,7 @@ plt.xlabel('M')
 plt.ylabel('energy')
 plt.show()
 
-
-accepted_libraries = {k:v for (k,v) in l.items() if k[0] < energy_threshold and k[1] > M_threshold}
+accepted_libraries = {k:v for (k,v) in l.items() if v['energy'] < energy_threshold and v['M'] > M_threshold}
 
 print(accepted_libraries)
 

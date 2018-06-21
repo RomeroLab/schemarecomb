@@ -1,7 +1,7 @@
 import pickle
 import matplotlib.pyplot as plt
 
-l = pickle.load(open('libraries_gg.p','rb'))
+l = pickle.load(open('gg_libraries.p','rb'))
 
 M_threshold = 1
 energy_threshold = 1000

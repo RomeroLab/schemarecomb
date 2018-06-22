@@ -11,8 +11,8 @@ NT_seqs = sequence_tools.read_fasta('DXS_parent_CDN_alignment.fasta')[1]
 
 frags = []
 
-bbs1_start = 'GGTCTC' + 'C'
-bbs1_end = 'C' + 'GAGACC'
+bsa1_start = 'GGTCTC' + 'C'
+bsa1_end = 'C' + 'GAGACC'
 
 #library 1
 for bp in range(1, len(overhangs) - 1):
@@ -24,7 +24,7 @@ for bp in range(1, len(overhangs) - 1):
     for seq in NT_seqs:
         raw_frag = seq[start_ind + 4 : end_ind - 4]
         frag_w_overhangs = overhangs[bp-1][1] + raw_frag + overhangs[bp][1]
-        frag_w_gg_sites = bbs1_start + frag_w_overhangs + bbs1_end
+        frag_w_gg_sites = bsa1_start + frag_w_overhangs + bsa1_end
         new_frags.append(frag_w_gg_sites.replace('-',''))
         
     frags.append(new_frags)

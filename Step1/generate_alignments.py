@@ -10,8 +10,8 @@ C31 = [['GCT','GCA'],['CGT','CGA'],['AAT'],['GAT'],['TGT'],['CAA','CAG'],['GAA']
 in_fn = 'sequences'
 out_fn = 'alignment'
 
-Popen('muscle -in {}.fasta -out {}.fasta'.format(in_fn, out_fn), shell=True).wait()
-alignment_file = list(SeqIO.parse('{}.fasta'.format(out_fn), 'fasta'))
+Popen('muscle -in {}.fasta -out AA_{}.fasta'.format(in_fn, out_fn), shell=True).wait()
+alignment_file = list(SeqIO.parse('AA_{}.fasta'.format(out_fn), 'fasta'))
 
 pickle.dump([str(i.id) for i in alignment_file], open('names_{}.p'.format(out_fn), 'wb'))
 

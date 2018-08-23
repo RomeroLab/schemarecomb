@@ -10,11 +10,7 @@ alignment_fn = 'alignment.p'
 contacts_fn = 'contacts.p'
 libraries_fn = 'libraries.p'
 
-alignment = pickle.load(open('alignment.p', 'rb'))
-contacts=pickle.load(open('contacts.p', 'rb'))
-
 alignment = pickle.load(open(alignment_fn, 'rb'))
-
 contacts=pickle.load(open(contacts_fn, 'rb'))
 
 # A breakpoint specifies the first position of a new block. 

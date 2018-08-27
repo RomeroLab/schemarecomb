@@ -4,24 +4,15 @@ import pickle
 
 pdb_fn = '5ng6_a.pdb'
 pdb_seq_name_in_alignment = '5ng6_a'
-alignment_fn = 'alignment'
+alignment_prefix = 'alignment'
 
 class atom:
     def __init__(self, line):
-        self.serial = line[6:11].strip()
-        self.name = line[12:16].strip()
-        self.altLoc = line[16].strip()
         self.resName = line[17:20].strip()
-        self.chainID = line[21].strip()
         self.resSeq = int(line[22:26].strip())
-        self.iCode = line[26].strip()
         self.x = float(line[30:38].strip())
         self.y = float(line[38:46].strip())
         self.z = float(line[46:54].strip())
-        self.occupancy = line[54:60].strip()
-        self.tempFactor = line[60:66].strip()
-        self.element = line[76:78]
-        self.charge = line[78:80]
   
 def d(a1, a2):
     return ((a1.x - a2.x)**2 + (a1.y - a2.y)**2 + (a1.z - a2.z)**2) ** (1/2)    
@@ -43,10 +34,11 @@ class residue:
                     m = dis
         return m
 
-with open(pdb_fn) as f:
-    lines = [i.strip() for i in f.readlines() if 'ATOM' in i[:4]]
+print('Ensure that the PDB sequence matches one of the MSA sequences.')
 
-atoms = [atom(line) for line in lines]
+with open(pdb_fn) as f:
+    atoms = [atom(i.strip()) for i in f.readlines() if 'ATOM' in i[:4]]
+
 AAs = {}
 for a in atoms:
     if a.resSeq not in AAs:
@@ -55,6 +47,7 @@ for a in atoms:
         AAs[a.resSeq].add_atom(a)
 
 initial_contacts = []
+print('Now calculating contacts.')
 for i in sorted(AAs):
     print('\rCurrent AA: {}'.format(i), end=' ', flush=True)
     for j in sorted(AAs)[sorted(AAs).index(i)+1:]:
@@ -68,11 +61,12 @@ wt_pdb_ex = ''.join([seq1(AAs[i+1].resName) if i+1 in AAs else '-' for i in rang
 
 PDB_index = 0
 MSA_index = 0
+print('Align the start of the MSA sequence with the PDB sequence.')
 while True:
     print('\nCurrent PDB_index: {}, Current MSA_index: {}'.format(PDB_index, MSA_index))
     print('PDB seq: ' + wt_pdb_ex[PDB_index : PDB_index + 50] + '...')
     print('MSA seq: ' + wt_msa[MSA_index : MSA_index + 50] + '...')
-    i = input('Are these sequences aligned? [Y/N]: ')
+    i = input('Are these sequences alignedi at the start? [Y/N]: ')
     while i != 'Y' and i != 'N':
         i = input('Please enter Y or N: ')
     if i == 'Y':
@@ -81,6 +75,7 @@ while True:
         PDB_index = int(input('Enter new PDB_ind: '))
         MSA_index = int(input('Enter new MSA_ind: '))
 
+#generate dictionary for conversion of PDB indexing to MSA indexing
 old_new = {}
 while PDB_index < len(wt_pdb_ex) and MSA_index < len(wt_msa):
     if wt_msa[MSA_index] != '-' and wt_pdb_ex[PDB_index] != '-':   
@@ -93,6 +88,7 @@ while PDB_index < len(wt_pdb_ex) and MSA_index < len(wt_msa):
     elif wt_msa[MSA_index] == '-':
         MSA_index += 1
 
+#Check that MSA and PDB index are properly converted for all AAs
 for k,v in old_new.items():
     assert seq1(AAs[k].resName) == wt_msa[v]
 

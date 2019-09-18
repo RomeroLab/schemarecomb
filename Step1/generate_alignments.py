@@ -1,3 +1,4 @@
+import json
 import os
 
 from Bio import Seq, SeqRecord, SeqIO
@@ -58,6 +59,8 @@ for index, AA1 in enumerate(pdb_AAs):
     for AA2 in pdb_AAs[index+1:]:
         if AA1.d(AA2) < 4.5:
             contacts.append((AA1.resSeq, AA2.resSeq))
+with open(out_file_prefix + '_contacts.json', 'w') as f:
+    json.dump(contacts, f)
 
 # Add stop codons if necessary
 if AA_alignment[-1] != tuple(['*'] * len(alignment_SRs)):

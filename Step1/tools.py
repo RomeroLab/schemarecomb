@@ -101,11 +101,10 @@ def get_PDB_seq(AAs):
     return ''.join([seq1(AA.resName) for AA in AAs])
 
 
-def save_SeqRecords(seqs, names, descriptions, handle):
+def save_SeqRecords(seqs, names, handle):
     seqs = [Seq.Seq(sequence) for sequence in seqs]
-    zipped_SRs = zip(seqs, names, descriptions)
-    records = [SeqRecord.SeqRecord(s, name=n, description=d)
-               for s, n, d in zipped_SRs]
+    zipped_SRs = zip(seqs, names)
+    records = [SeqRecord.SeqRecord(s, name=n) for s, n in zipped_SRs]
     SeqIO.write(records, handle, 'fasta')
 
 

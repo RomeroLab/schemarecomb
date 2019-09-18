@@ -1,4 +1,4 @@
-""" This script aligns a group of sequences and calculates a contact map. 
+""" This script aligns a group of sequences and calculates a contact map.
 
 It takes as input a sequence fasta file and a PDB structure file. The sequence
 fasta should list the parent amino acid sequences for SCHEMA-RASPP, with
@@ -14,7 +14,7 @@ respectively. Change "out_file_prefix" (ofp) to the desired prefix for the
 output files.
 
 The main output files are "<ofp>_AA.fasta", "<ofp>_contacts.json", and
-"<ofp>_CDN.fasta", which are used in later steps. "renumbered_<pdb_fn>" and 
+"<ofp>_CDN.fasta", which are used in later steps. "renumbered_<pdb_fn>" and
 "<ofp>_PDB.fasta" are also output for logging purposes.
 """
 
@@ -31,7 +31,7 @@ pdb_fn = 'test.pdb'              # name of PDB file used to make contact map
 
 tools.run_muscle(in_fn, out_file_prefix + '_AA.fasta')
 
-# Load muscle input fasta file
+# Load muscle output fasta file
 alignment_SRs = list(SeqIO.parse(f'{out_file_prefix}_AA.fasta', 'fasta'))
 names = [str(i.id) for i in alignment_SRs]
 AA_seqs = [str(i.seq) for i in alignment_SRs]

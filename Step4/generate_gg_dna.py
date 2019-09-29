@@ -1,4 +1,23 @@
-import pickle
+""" Generate DNA fragments from chosen library for ordering.
+
+Run syntax: "python step4.py <AA_alignment_fn> <CDN_alignment_fn>
+    <chosen_lib_fn> <frags_order_fn>"
+Example: "python step4.py bgl3_AA.fasta bgl3_CDN.fasta bgl3_chosen_lib.json"
+
+Command Line Args:
+    AA_alignment_fn: name of aligned amino acid sequences file, from step 1
+    CDN_alignment_fn: name of aligned codon sequences file, from step1
+    chosen_lib_fn: name of chosen library file, from step 3
+    frags_order_fn: name of frags order fasta file
+
+Output:
+    DNA fragments for ordering in <frags_order_fn>
+
+You can also replace all instances of "sys.argv" in the code with the input
+filenames directly, then run "python step1.py".
+"""
+
+import json
 import sequence_tools
 
 alignment = pickle.load(open('alignment.p', 'rb'))

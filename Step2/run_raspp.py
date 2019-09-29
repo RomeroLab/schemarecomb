@@ -2,25 +2,34 @@
 
 Run syntax: "python step2.py <num_bl> <minBL> <maxBL> <alignment_fn>
     <contacts_fn> <libraries_fn>"
-Example: "python step2.py 8 50 300 alignment.fasta contact.json libraries.json"
+Example: "python step2.py 8 50 300 bgl3_AA.fasta bgl3_contacts.json
+    bgl3_libraries.json"
 
 Command Line Args:
     num_bl: number of blocks in libraries
     minBL: minimum block length in libraries
     maxBL: maximum blocki length in libraries
-    alignment_fn: name of alignment file from Step1
-    contacts_fn: name of contacts file from Step1
+    alignment_fn: name of amino acid alignment file, from step 1
+    contacts_fn: name of contacts file, from step 1
     libraries_fn: output filename
 
 Output:
-    libraries dictionary in library.json
+    libraries dictionary in <libraries_fn>, used in step 3
 
-You can also replace all instances of "sys.argv" with the input directly, then
-run "python step2.py".
+You can also replace all instances of "sys.argv" in the code with the input
+filenames directly, then run "python step2.py".
+
+This script generates the graph from Endelman JB et al. "Site-directed protein
+recombination as a shortest-path problem." (2004), but uses Dijkstra's
+algorithm to solve the shortest-path problem. While this is technically less
+efficient, the reduction in number of breakpoints caused by the Golden Gate
+criteria makes enumeration of nearly all paths tractable.
 
 It's recommended to run this script with "nohup <command> &> log.txt &" because
 it may take awhile. You can then leave the server and the script will keep
 running. Output will be redirected to log.txt.
+
+BioPython is a required package. The Romero Lab group server has it installed.
 """
 
 import json

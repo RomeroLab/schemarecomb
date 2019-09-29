@@ -48,13 +48,13 @@ import sys
 
 from Bio import Seq, SeqRecord, SeqIO
 
-import tools
+from tools import step1_tools
 
 seq_fn = sys.argv[1]  # name of sequences file read by muscle
 pdb_fn = sys.argv[2]  # name of PDB file used to make contact map
 out_prefix = sys.argv[3]  # prefix of output files
 
-tools.run_muscle(seq_fn, out_prefix + '_AA.fasta')
+step1_tools.run_muscle(seq_fn, out_prefix + '_AA.fasta')
 
 # Load muscle output fasta file
 alignment_SRs = list(SeqIO.parse(f'{out_prefix}_AA.fasta', 'fasta'))
@@ -63,15 +63,15 @@ AA_seqs = [str(i.seq) for i in alignment_SRs]
 AA_alignment = list(zip(*AA_seqs))  # list of AAs at each position
 
 # Load sequence from pdb and temporarily add to AA alignment
-pdb_AAs = tools.read_PDB(pdb_fn)
-pdb_Seq = tools.get_PDB_seq(pdb_AAs)
+pdb_AAs = step1_tools.read_PDB(pdb_fn)
+pdb_Seq = step1_tools.get_PDB_seq(pdb_AAs)
 pdb_Seq = Seq.Seq(pdb_Seq)
 pdb_SeqRecord = SeqRecord.SeqRecord(pdb_Seq, name='PDB')
 temp_SRs = [pdb_SeqRecord] + alignment_SRs
 
 # Align pdb sequence to AA aligned sequences
 SeqIO.write(temp_SRs, 'temp_seqs.fasta', 'fasta')
-tools.run_muscle('temp_seqs.fasta', f'{out_prefix}_PDB.fasta')
+step1_tools.run_muscle('temp_seqs.fasta', f'{out_prefix}_PDB.fasta')
 os.remove('temp_seqs.fasta')
 pdb_align_SRs = SeqIO.parse(f'{out_prefix}_PDB.fasta', 'fasta')
 pdb_align_seqs = [str(i.seq) for i in pdb_align_SRs]
@@ -86,15 +86,15 @@ for pdb_AA, *parent_AAs in pdb_alignment:
         pos += 1
     if pdb_AA != '-':
         AA = next(pdb_AAs_residue)
-        assert tools.seq1(AA.resName) == pdb_AA
+        assert step1_tools.seq1(AA.resName) == pdb_AA
         if valid_parent_pos:
             AA.resSeq = pos
         else:
             AA.resSeq = None
-tools.write_PDB(pdb_AAs, 'renumbered_' + pdb_fn)
+step1_tools.write_PDB(pdb_AAs, 'renumbered_' + pdb_fn)
 
 # Calculate contacts
-pdb_AAs = list(tools.read_PDB('renumbered_' + pdb_fn))
+pdb_AAs = list(step1_tools.read_PDB('renumbered_' + pdb_fn))
 for AA in pdb_AAs:
     AA.resSeq -= 1   # make index start from 0
 contacts = []
@@ -110,6 +110,6 @@ if AA_alignment[-1] != tuple(['*'] * len(alignment_SRs)):
     AA_alignment.append(tuple(['*'] * len(alignment_SRs)))
 
 # Make and save codon alignments
-CDN_align = [tools.get_pos_CDNs(pos) for pos in AA_alignment]
+CDN_align = [step1_tools.get_pos_CDNs(pos) for pos in AA_alignment]
 CDN_seqs = [''.join(CDN_pos) for CDN_pos in zip(*CDN_align)]
-tools.save_SeqRecords(CDN_seqs, names, f'{out_prefix}_CDN.fasta')
+step1_tools.save_SeqRecords(CDN_seqs, names, f'{out_prefix}_CDN.fasta')

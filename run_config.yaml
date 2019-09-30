@@ -1,0 +1,12 @@
+seq_fn: bgl3_sequences.fasta
+pdb_fn: '1gnx.pdb'
+out_prefix: 'bgl3'
+
+num_bl: 4
+minBL: 50
+maxBL: 400
+libraries_fn: 'bgl3_libraries.json'
+
+chosen_lib_fn: 'bgl3_chosen_lib.json'
+
+frags_order_fn: 'bgl3_frag_order.fasta'

@@ -20,7 +20,9 @@ filenames directly, then run "python step1.py".
 import json
 import sys
 
-from Bio import SeqIO, SeqRecord, Seq
+from Bio import SeqIO
+from Bio.SeqRecord import SeqRecord
+from Bio.Seq import Seq
 
 from tools import step4_tools
 
@@ -63,6 +65,8 @@ bsaI_end = 'c' + 'gagacc' + 'gactc'
 # first and last breakpoints are special -> different procedures for first and
 # last blocks
 
+print('Constructing fragments', flush=True)
+
 # starting block
 for p_name, cdn_seq in CDN_seqs:
     bp2 = breakpoints[1]  # index of breakpoint at end of block
@@ -70,14 +74,15 @@ for p_name, cdn_seq in CDN_seqs:
     str_seq = ''.join(cdn_seq[:bp2-1]).replace('-', '')
 
     # sequence that gets added to front of fragment
-    overhang_seq = step4_tools.first_overhang_seq(overhangs[0], str_seq)
-    front_addition = bsaI_start + overhang_seq
+    overhang_seq1 = step4_tools.first_overhang_seq(overhangs[0], str_seq)
+    front_addition = bsaI_start + overhang_seq1
 
     # sequence that gets added to back of fragment
-    bp2_AA1, bp2_AA2 = AA_alignment[bp2-1], AA_alignment[bp2]
-    oh2_CDN_seq = step4_tools.overhang_CDN_seq(overhangs[1], bp2_AA1, bp2_AA2,
-                                               block_front_back='back')
-    back_addition = oh2_CDN_seq + bsaI_end
+    bp2_cdn1, bp2_cdn2 = cdn_seq[bp2-1], cdn_seq[bp2]
+    overhang_seq2 = step4_tools.overhang_CDN_seq(overhangs[1], bp2_cdn1,
+                                                 bp2_cdn2,
+                                                 block_front_back='back')
+    back_addition = overhang_seq2 + bsaI_end
 
     frag_seq = front_addition + str_seq + back_addition
     frag_sr = SeqRecord(Seq(frag_seq), p_name + '_frag1')
@@ -88,22 +93,22 @@ for p_name, cdn_seq in CDN_seqs:
 front_bps, front_ohs = breakpoints[1:-2], overhangs[1:-2]  # starts of blocks
 back_bps, back_ohs = breakpoints[2:-1], overhangs[2:-1]  # ends of blocks
 blocks_iter = zip(front_bps, front_ohs, back_bps, back_ohs)
-for block_num, (bp1, oh1, bp2, oh2) in enumerate(2, blocks_iter):
+for block_num, (bp1, oh1, bp2, oh2) in enumerate(blocks_iter, 2):
     for p_name, cdn_seq in CDN_seqs:
         # make fragment sequence with breakpoint residues stripped off
         str_seq = ''.join(cdn_seq[bp1+1:bp2-1]).replace('-', '')
 
         # sequence that gets added to front of fragment
-        bp1_AA1, bp1_AA2 = AA_alignment[bp1-1], AA_alignment[bp1]
-        oh1_CDN_seq = step4_tools.overhang_CDN_seq(oh1, bp1_AA1, bp1_AA1,
-                                                   block_front_back='front')
-        front_addition = bsaI_start + oh1_CDN_seq
+        bp1_cdn1, bp1_cdn2 = cdn_seq[bp1-1], cdn_seq[bp1]
+        oh1_seq = step4_tools.overhang_CDN_seq(oh1, bp1_cdn1, bp1_cdn2,
+                                               block_front_back='front')
+        front_addition = bsaI_start + oh1_seq
 
         # sequence that gets added to back of fragment
-        bp2_AA1, bp2_AA2 = AA_alignment[bp2-1], AA_alignment[bp2]
-        oh2_CDN_seq = step4_tools.overhang_CDN_seq(oh2, bp2_AA1, bp2_AA1,
-                                                   block_front_back='back')
-        front_addition = oh2_CDN_seq + bsaI_end
+        bp2_cdn1, bp2_cdn2 = cdn_seq[bp2-1], cdn_seq[bp2]
+        oh2_seq = step4_tools.overhang_CDN_seq(oh2, bp2_cdn1, bp2_cdn2,
+                                               block_front_back='back')
+        back_addition = oh2_seq + bsaI_end
 
         frag_seq = front_addition + str_seq + back_addition
         frag_sr = SeqRecord(Seq(frag_seq), p_name + f'_frag{block_num}')
@@ -114,13 +119,13 @@ block_num += 1
 for p_name, cdn_seq in CDN_seqs:
     bp1 = breakpoints[-2]  # index of breakpoint at beginning of block
     # make fragment sequence with breakpoint residues stripped off
-    str_seq = ''.join(cdn_seq[bp1+1]).replace('-', '')
+    str_seq = ''.join(cdn_seq[bp1+1:]).replace('-', '')
 
     # sequence that gets added to front of fragment
-    bp1_AA1, bp1_AA2 = AA_alignment[bp1-1], AA_alignment[bp1]
-    oh1_CDN_seq = step4_tools.overhang_CDN_seq(overhangs[-2], bp1_AA1, bp1_AA2,
-                                               block_front_back='front')
-    front_addition = bsaI_start + oh1_CDN_seq
+    bp1_cdn1, bp1_cdn2 = cdn_seq[bp1-1], cdn_seq[bp1]
+    oh1_seq = step4_tools.overhang_CDN_seq(overhangs[-2], bp1_cdn1, bp1_cdn2,
+                                           block_front_back='front')
+    front_addition = bsaI_start + oh1_seq
 
     overhang_seq = step4_tools.last_overhang_seq(overhangs[-1], str_seq)
     back_addition = overhang_seq + bsaI_end

@@ -33,6 +33,7 @@ BioPython is a required package. The Romero Lab group server has it installed.
 """
 
 import json
+import os
 import sys
 
 from Bio import SeqIO

@@ -5,7 +5,7 @@ from Bio import Seq
 # DNA bases and codon->AA translation code.
 bases = ['A', 'C', 'G', 'T']
 codons = [''.join(cdn) for cdn in itertools.product(bases, repeat=3)]
-code = {cdn: str((Seq(cdn)).translate()) for cdn in codons}
+code = {cdn: str((Seq.Seq(cdn)).translate()) for cdn in codons}
 code['---'] = '-'
 
 # Remove rare codons -- we don't want to allow these at the block junctions.

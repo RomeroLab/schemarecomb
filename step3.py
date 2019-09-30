@@ -54,7 +54,6 @@ plt.title('Libraries')
 plt.xlabel('M')
 plt.ylabel('energy')
 plt.savefig('libraries.png')
-plt.show()
 
 chosen_lib = (chosen_lib_bps, chosen_lib_attrs)
 with open(chosen_lib_fn, 'w') as f:

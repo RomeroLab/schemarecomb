@@ -74,7 +74,7 @@ def run_muscle(in_fn, out_fn):
     in_labels = [SR.name for SR in SeqIO.parse(in_fn, 'fasta')]
     stable_out_SRs = [out_SRs[label] for label in in_labels]
     SeqIO.write(stable_out_SRs, out_fn, 'fasta')
-    print('\n\n Muscle done.')
+    print('\n\nMuscle done.')
 
 
 def read_PDB(pdb_fn):
@@ -104,7 +104,7 @@ def get_PDB_seq(AAs):
 def save_SeqRecords(seqs, names, handle):
     seqs = [Seq.Seq(sequence) for sequence in seqs]
     zipped_SRs = zip(seqs, names)
-    records = [SeqRecord.SeqRecord(s, name=n) for s, n in zipped_SRs]
+    records = [SeqRecord.SeqRecord(s, id=n) for s, n in zipped_SRs]
     SeqIO.write(records, handle, 'fasta')
 
 

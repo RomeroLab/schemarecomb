@@ -57,12 +57,14 @@ out_prefix = sys.argv[3]  # prefix of output files
 step1_tools.run_muscle(seq_fn, out_prefix + '_AA.fasta')
 
 # Load muscle output fasta file
+print('Loading muscle output', flush=True)
 alignment_SRs = list(SeqIO.parse(f'{out_prefix}_AA.fasta', 'fasta'))
 names = [str(i.id) for i in alignment_SRs]
 AA_seqs = [str(i.seq) for i in alignment_SRs]
 AA_alignment = list(zip(*AA_seqs))  # list of AAs at each position
 
 # Load sequence from pdb and temporarily add to AA alignment
+print('Loading pdb file', flush=True)
 pdb_AAs = step1_tools.read_PDB(pdb_fn)
 pdb_Seq = step1_tools.get_PDB_seq(pdb_AAs)
 pdb_Seq = Seq.Seq(pdb_Seq)
@@ -70,6 +72,7 @@ pdb_SeqRecord = SeqRecord.SeqRecord(pdb_Seq, name='PDB')
 temp_SRs = [pdb_SeqRecord] + alignment_SRs
 
 # Align pdb sequence to AA aligned sequences
+print('Aligning pdb sequence to AA aligned sequencing', flush=True)
 SeqIO.write(temp_SRs, 'temp_seqs.fasta', 'fasta')
 step1_tools.run_muscle('temp_seqs.fasta', f'{out_prefix}_PDB.fasta')
 os.remove('temp_seqs.fasta')
@@ -78,6 +81,7 @@ pdb_align_seqs = [str(i.seq) for i in pdb_align_SRs]
 pdb_alignment = list(zip(*pdb_align_seqs))
 
 # Renumber pdb residues and save new pdb
+print('Renumbering pdb file', flush=True)
 pdb_AAs_residue = iter(pdb_AAs)
 pos = 0    # PDB will be 1-indexed for consistency with other PDB files
 for pdb_AA, *parent_AAs in pdb_alignment:
@@ -94,6 +98,7 @@ for pdb_AA, *parent_AAs in pdb_alignment:
 step1_tools.write_PDB(pdb_AAs, 'renumbered_' + pdb_fn)
 
 # Calculate contacts
+print('Calculating contacts', flush=True)
 pdb_AAs = list(step1_tools.read_PDB('renumbered_' + pdb_fn))
 for AA in pdb_AAs:
     AA.resSeq -= 1   # make index start from 0
@@ -110,6 +115,7 @@ if AA_alignment[-1] != tuple(['*'] * len(alignment_SRs)):
     AA_alignment.append(tuple(['*'] * len(alignment_SRs)))
 
 # Make and save codon alignments
+print('Making codon alignment', flush=True)
 CDN_align = [step1_tools.get_pos_CDNs(pos) for pos in AA_alignment]
 CDN_seqs = [''.join(CDN_pos) for CDN_pos in zip(*CDN_align)]
 step1_tools.save_SeqRecords(CDN_seqs, names, f'{out_prefix}_CDN.fasta')

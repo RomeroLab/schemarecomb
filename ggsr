@@ -1,79 +1,78 @@
 #!/usr/bin/env python
 
 import sys
+import os
 
-USAGE_INFO = 'Usage: ggsr info\n' \
-             '       ggsr step1 <sequence filename> <pdb filename> ' \
-             '[<output files prefix>]\n' \
-             '       ggsr step2 [-a <AA alignment filename>] [-c <contacts ' \
-             'filename>] [-o <output libraries filename>]\n' \
-             '       ggsr step3 [-l <golden gate libraries filename>] [-o ' \
-             '<chosen library filename>]\n' \
-             '       ggsr step4 [-l <chosen library filename>] [-a <AA ' \
-             'alignment filename>] [-c <codon alignment filename>] [-o ' \
-             '<output fragments filename>]'
+import yaml
 
+USAGE_INFO = 'Usage: ggsr --help\n' \
+             '       ggsr <config filename>'
 
-def parse_arguments(flags_defaults_dict):
-    if len(sys.argv) % 2 != 0 or len(sys.argv) > 2 + \
-                                              2 * len(flags_defaults_dict):
-        print(USAGE_INFO)
-        sys.exit()
-    remaining_flags = list(flags_defaults_dict.keys())
-    function_args = flags_defaults_dict
-    for flag, filename in zip(sys.argv[2::2], sys.argv[3::2]):
-        if flag not in remaining_flags:
-            print(USAGE_INFO)
-            sys.exit()
-        remaining_flags.remove(flag)
-        function_args[flag] = filename
-    return function_args
+dirname = os.path.split(os.path.abspath(os.path.realpath(sys.argv[0])))[0]
 
+HELP_INFO = 'ggsr is a program for designing SCHEMA-RASPP libraries with ' \
+            'Golden Gate Assembly.\n\n' \
+            'The following procedure will design a library that can ' \
+            'be assembled with BsaI Golden Gate Assembly into a vector with ' \
+            'BsaI overhangs: \n' \
+            '    1. Make a new directory.\n' \
+            '    2. Copy a fasta file with your parent names and sequences ' \
+            'into the directory.\n' \
+            '    3. Optionally copy a .pdb file with structure information ' \
+            'related to your parent sequences into the directory.\n' \
+            f'    4. Inside the directory, run "cp {dirname}/' \
+            'run_config.yaml ."\n' \
+            '    5. Edit this configuration file according to your library' \
+            ' requirements.\n' \
+            '    6. Run "nohup ggsr run_config.yaml &> ggsr.log &".\n\n' \
+            f'Alternatively, run "cp -r {dirname} <new directory name>",' \
+            ' edit the stepx.py scripts, and run them individually to ' \
+            'get more flexibility.\n' \
+            'View https://github.com/RomeroLab/SCHEMA-library-design/wiki ' \
+            'for more information.'
 
-if len(sys.argv) < 2 or sys.argv[1] not in ('info', 'step1', 'step2', 'step3',
-                                            'step4'):
+if len(sys.argv) != 2:
     print(USAGE_INFO)
+    sys.exit()
 
-elif sys.argv[1] == 'info':
-    print('ggsr is a program for designing SCHEMA-RASPP libraries with Golden '
-          'Gate Assembly.\n')
-    print('Each step should be run in order. The program requires two input '
-          'files: a fasta file with the parent sequences and a pdb file of '
-          'a protein similar to at least one of the parents.\n')
-    print('Run "ggsr" for program usage information. The simplest way to run '
-          'this program is avoid specifying any file name beyond the two '
-          'inputs required by step1. Default filenames will then be used.\n')
-    print('View https://github.com/RomeroLab/SCHEMA-library-design/wiki for '
-          'more information.\n')
+if sys.argv[1] == '--help':
+    print(HELP_INFO)
+    sys.exit()
 
-elif sys.argv[1] == 'step1':
-    if len(sys.argv) not in (4, 5):
-        print(USAGE_INFO)
-        sys.exit()
-    step1_args = {'sequences': sys.argv[2],
-                  'pdb': sys.argv[3],
-                  'output': ''}
-    if len(sys.argv) == 5:
-        step1_args['output'] = sys.argv[4]
-    # run step1 here
+with open(sys.argv[1]) as f:
+    config_map = yaml.safe_load(f)
 
-elif sys.argv[1] == 'step2':
-    step2_defaults = {'-a': 'AA_alignment.fasta',
-                      '-c': 'contacts.json',
-                      '-o': 'libraries.json'}
-    step2_args = parse_arguments(step2_defaults)
-    # run step2
+sys.argv = [sys.argv[0], config_map['seq_fn'], config_map['pdb_fn'],
+            config_map['out_prefix']]
+run_args = [str(c)+' ' for c in sys.argv]
+run_args[0] = 'step1.py '
+print('Running:', ''.join(run_args))
+exec(open(dirname + '/step1.py').read())
+print('Step1 done\n')
 
-elif sys.argv[2] == 'step3':
-    step3_defaults = {'-l': 'gg_libraries.json',
-                      '-o': 'chosen_library.json'}
-    step3_args = parse_arguments(step3_defaults)
-    # run step3
+sys.argv = [sys.argv[0], config_map['num_bl'], config_map['minBL'],
+            config_map['maxBL'], config_map['out_prefix']+'_AA.fasta',
+            config_map['out_prefix']+'_contacts.json',
+            config_map['libraries_fn']]
+run_args = [str(c)+' ' for c in sys.argv]
+run_args[0] = 'step2.py '
+print('Running:', ''.join(run_args))
+exec(open(dirname + '/step2.py').read())
+print('Step2 done\n')
 
-elif sys.argv[2] == 'step4':
-    step4_defaults = {'-l': 'chosen_library.json',
-                      '-a': 'AA_alignment.fasta',
-                      '-c': 'CDN_alignment.fasta',
-                      '-o': 'fragment_order.fasta'}
-    step4_args = parse_arguments(step4_defaults)
-    # run step4
+sys.argv = [sys.argv[0], config_map['libraries_fn'],
+            config_map['chosen_lib_fn']]
+run_args = [str(c)+' ' for c in sys.argv]
+run_args[0] = 'step3.py '
+print('Running:', ''.join(run_args))
+exec(open(dirname + '/step3.py').read())
+print('Step3 done\n')
+
+sys.argv = [sys.argv[0], config_map['out_prefix']+'_AA.fasta',
+            config_map['out_prefix']+'_CDN.fasta', config_map['chosen_lib_fn'],
+            config_map['frags_order_fn']]
+run_args = [str(c)+' ' for c in sys.argv]
+run_args[0] = 'step4.py '
+print('Running:', ''.join(run_args))
+exec(open(dirname + '/step4.py').read())
+print('Step4 done')

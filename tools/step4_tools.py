@@ -4,7 +4,7 @@ import re
 
 from Bio import Seq, SeqRecord
 
-import general_tools
+from tools import general_tools
 
 
 def first_overhang_seq(overhang, str_seq):
@@ -38,11 +38,18 @@ def last_overhang_seq(overhang, str_seq):
     oh_pos, oh_seq = overhang
     # number of bases on right side of seq that should be in left side of oh
     oh_in_seq = 3 - oh_pos
-    assert oh_seq[-oh_in_seq:] == str_seq[:oh_in_seq]
+    assert oh_seq[:oh_in_seq] == str_seq[-oh_in_seq:]
     return oh_seq[oh_in_seq-4:]
 
 
-def overhang_CDN_seq(overhang, AA1, AA2, block_front_back):
+def _get_valid_codon(AA, pattern):
+    residue_cdns = general_tools.rev_code[AA]
+    possible_cdns = [c for c in residue_cdns if re.fullmatch(pattern, c)]
+    cdn = possible_cdns[0]
+    return cdn
+
+
+def overhang_CDN_seq(overhang, cdn1, cdn2, block_front_back):
     position, oh_seq = overhang
 
     # build codon patterns for both codons
@@ -50,23 +57,21 @@ def overhang_CDN_seq(overhang, AA1, AA2, block_front_back):
     pattern1 = overall_pattern[:3]
     pattern2 = overall_pattern[3:]
 
-    # get codon for AA1
-    possible_CDNs1 = general_tools.rev_code[AA1]
-    CDN1 = [cdn for cdn in possible_CDNs1 if re.fullmatch(pattern1, cdn)][0]
+    AA1 = general_tools.code[cdn1]
+    AA2 = general_tools.code[cdn2]
 
-    # get codon for AA2
-    possible_CDNs2 = general_tools.rev_code[AA2]
-    CDN2 = [cdn for cdn in possible_CDNs2 if re.fullmatch(pattern2, cdn)][0]
+    cdn1 = _get_valid_codon(AA1, pattern1)
+    cdn2 = _get_valid_codon(AA2, pattern2)
 
-    CDN_seq = CDN1 + CDN2
+    cdn_seq = cdn1 + cdn2
 
     assert block_front_back in ('front', 'back')
     if block_front_back == 'front':
-        return CDN_seq[position:]
+        return cdn_seq[position:]
 
     if position == 2:
-        return CDN_seq
-    return CDN_seq[:-2 + position]
+        return cdn_seq
+    return cdn_seq[:-2 + position]
 
 
 # Script for confirming order against amino acid sequence below

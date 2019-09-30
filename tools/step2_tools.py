@@ -2,16 +2,19 @@
 
 import collections
 import itertools
+import os
 import pickle
 import re
+import sys
 
 import networkx
 import numpy
 
-import general_tools
+from tools import general_tools
 
 # Change these as needed
-lig_counts_fn = 'normalized_ligation_counts_18h_37C.p'
+dirname = os.path.split(os.path.abspath(os.path.realpath(sys.argv[0])))[0]
+lig_counts_fn = dirname + '/tools/normalized_ligation_counts_18h_37C.p'
 normalized_ligation_counts = pickle.load(open(lig_counts_fn, 'rb'))
 vector_overhangs = ['TATG', 'TGAG']
 threshold = 245  # ligation count threshold for eliminating bad overhangs
@@ -143,9 +146,10 @@ def _patterns_to_overhangs(AA1_patterns, AA2_patterns):
     for pat in AA2_patterns:
         pat = pat.replace('.', '')
         AA2_binned[len(pat) - 1].append(pat)
-    AA2_binned = reversed(AA2_binned)  # reverse for combination with AA1_pats
+    AA1_binned = reversed(AA1_binned)  # reverse for combination with AA2_pats
 
     # find any length 4 overhangs (e.g. all len 1 AA1 pats w/ len 3 AA pats)
+    # pos is 3 - len(AA1_pat)
     overhangs = []
     for pos, (AA1_pats, AA2_pats) in enumerate(zip(AA1_binned, AA2_binned)):
         if not AA1_pats or not AA2_pats:
@@ -198,7 +202,7 @@ def find_GG_breakpoints(alignment):
 
         breakpoints[bp_num] = bp_overhangs
 
-    breakpoints[len(alignment)] = [(2, vector_overhangs[1])]
+    breakpoints[len(alignment)] = [(0, vector_overhangs[1])]
 
     return breakpoints
 
@@ -341,7 +345,9 @@ def _construct_graph(num_bl, blocks, E_matrix):
 
     # make last column
     column = num_bl
-    _graph_column(G, blocks, E_matrix, column)
+    last_bp = max(b[1] for b in blocks)
+    ending_blocks = [b for b in blocks if b[1] == last_bp]
+    _graph_column(G, ending_blocks, E_matrix, column)
     last_node = [node for node in G if node.col == column][0]
 
     # can remove nodes that don't have outgoing edges
@@ -580,13 +586,11 @@ def update_GG_prob(libraries, breakpoints):
             by shortest_path_recombination.
         breakpoints: Dictionary of int: list pairs from find_GG_breakpoints.
     """
-    progress = ProgressOutput(len(libraries))
+    progress = general_tools.ProgressOutput(len(libraries))
     for itr, (bp_positions, lib_attrs) in enumerate(libraries.items()):
         progress.update(itr)
-
         lib_breakpoints = {bp_pos: breakpoints[bp_pos] for bp_pos
                            in bp_positions}
-
         max_gg_prob = 0
         for oh_set in itertools.product(*lib_breakpoints.values()):
             overhangs = [pos_oh[1] for pos_oh in oh_set]

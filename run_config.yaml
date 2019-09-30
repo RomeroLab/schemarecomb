@@ -1,12 +1,20 @@
+# names of step1 input files
 seq_fn: bgl3_sequences.fasta
-pdb_fn: '1gnx.pdb'
-out_prefix: 'bgl3'
+pdb_fn: 1gnx.pdb
 
-num_bl: 4
-minBL: 50
-maxBL: 400
-libraries_fn: 'bgl3_libraries.json'
+# run parameters
+num_bl: 4  # number of blocks in library
+minBL: 50  # minimum length of blocks in library
+maxBL: 400  # maximum length of blocks in library
 
-chosen_lib_fn: 'bgl3_chosen_lib.json'
+# prefix on step 1 output files
+out_prefix: bgl3
 
-frags_order_fn: 'bgl3_frag_order.fasta'
+# name of step 2 output file
+libraries_fn: bgl3_libraries.json
+
+# name of step 3 output file
+chosen_lib_fn: bgl3_chosen_lib.json
+
+# name of step 4 output file
+frags_order_fn: bgl3_frag_order.fasta

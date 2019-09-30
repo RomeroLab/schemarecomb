@@ -9,9 +9,17 @@ Command Line Args:
 
 Outputs:
     chosen library in <chosen_lib_fn>, used in step 4
+    libraries.png: graph of SCHEMA-RASPP curve with chosen_library
+
 
 You can also replace all instances of "sys.argv" in the code with the input
 filenames directly, then run "python step2.py".
+
+As written, the script automatically chooses the library with maximum m-e where
+m is the average number of mutations and e is the SCHEMA energy for the
+library. To manually select a library, comment out the automatic selection,
+find the breakpoints key for the desired library, then save the desired library
+key-value pair in a tuple for json packaging.
 
 Matplotlib is a required package. The Romero lab group server has it installed.
 """
@@ -25,28 +33,29 @@ libraries_fn = sys.argv[1]
 chosen_lib_fn = sys.argv[2]
 
 with open(libraries_fn, 'r') as f:
-    l = json.load(f)
+    libraries = {tuple(k): v for k, v in json.load(f)}
 
-M_threshold = 1
-energy_threshold = 1000
 
-data_points = [(l[lib]['energy'],l[lib]['M'],l[lib]['GG_prob']) 
-            for lib in l.keys() if l[lib]['energy'] < energy_threshold and l[lib]['M'] > M_threshold]
+gg_filtered_libs = {k: v for k, v in libraries.items() if v['GG_prob'] >= 0.95}
 
-plt.figure()
-e,m,g = zip(*data_points)
-plt.scatter(m,e,c=g,vmax=1,vmin=.95)
-plt.colorbar().set_label('GG_prob',rotation=270,labelpad=12)
+chosen_lib_bps = max(gg_filtered_libs, key=lambda x: gg_filtered_libs[x]['M']
+                     - gg_filtered_libs[x]['energy'])
+chosen_lib_attrs = libraries[chosen_lib_bps]
+
+graph_data = [(l['M'], l['energy'], l['GG_prob']) for l in libraries.values()]
+graph_chosen_lib = (chosen_lib_attrs['M'], chosen_lib_attrs['energy'])
+
+plt.figure(figsize=(16, 9))
+m, e, g = zip(*graph_data)
+plt.scatter(m, e, c=g, vmax=1, vmin=.95)
+plt.annotate('chosen library', graph_chosen_lib)
+plt.colorbar().set_label('GG_prob', rotation=270, labelpad=12)
 plt.title('Libraries')
 plt.xlabel('M')
 plt.ylabel('energy')
+plt.savefig('libraries.png')
 plt.show()
 
-accepted_libraries = {k:v for (k,v) in l.items() if v['energy'] < energy_threshold and v['M'] > M_threshold}
-
-print(accepted_libraries)
-
-##set lib = l key of chosen library 
-chosen_lib = (lib, l[lib])
+chosen_lib = (chosen_lib_bps, chosen_lib_attrs)
 with open(chosen_lib_fn, 'w') as f:
     json.dump(chosen_lib, f)

@@ -5,32 +5,16 @@ import itertools
 import pickle
 import re
 
-from Bio.Seq import Seq
 import networkx
 import numpy
+
+import general_tools
 
 # Change these as needed
 lig_counts_fn = 'normalized_ligation_counts_18h_37C.p'
 normalized_ligation_counts = pickle.load(open(lig_counts_fn, 'rb'))
 vector_overhangs = ['TATG', 'TGAG']
 threshold = 245  # ligation count threshold for eliminating bad overhangs
-
-
-# DNA bases and codon->AA translation code.
-bases = ['A', 'C', 'G', 'T']
-codons = [''.join(cdn) for cdn in itertools.product(bases, repeat=3)]
-code = {cdn: str((Seq(cdn)).translate()) for cdn in codons}
-code['---'] = '-'
-
-# Remove rare codons -- we don't want to allow these at the block junctions.
-# (Phil Romero found these from various sources online.)
-rare = ('ATA', 'AGG', 'TCG', 'ACG', 'AGA', 'GGA', 'CTA', 'GGG', 'CCC', 'CGG',
-        'CGA')
-(code.pop(r) for r in rare)
-
-# AA->codon reverse translation code.
-aminos = set(code.values())
-rev_code = {a: tuple([k for k in code.keys() if code[k] == a]) for a in aminos}
 
 complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
 
@@ -65,7 +49,8 @@ def acceptable_overhang(overhang):
     return True
 
 
-all_overhangs = [''.join(oh) for oh in itertools.product(bases, repeat=4)]
+all_overhangs = [''.join(oh) for oh in itertools.product(general_tools.bases,
+                                                         repeat=4)]
 acceptable_overhangs = [oh for oh in all_overhangs if acceptable_overhang(oh)]
 
 
@@ -112,17 +97,17 @@ def _get_valid_patterns(pos_cdns, reverse=False):
     # need to iterate through all possible cdn patterns, but can eliminate
     # based on subpattern validity
     valid_patterns = []
-    for b1 in bases:
+    for b1 in general_tools.bases:
         pattern = f'{b1}..'
         if not _pattern_valid(pattern, pos_cdns):
             continue  # No use exploring derivatives
         valid_patterns.append(pattern)
-        for b2 in bases:
+        for b2 in general_tools.bases:
             pattern = f'{b1}{b2}.'
             if not _pattern_valid(pattern, pos_cdns):
                 continue  # No use exploring derivatives
             valid_patterns.append(pattern)
-            for b3 in bases:
+            for b3 in general_tools.bases:
                 pattern = f'{b1}{b2}{b3}'
                 if _pattern_valid(pattern, pos_cdns):
                     valid_patterns.append(pattern)
@@ -200,8 +185,8 @@ def find_GG_breakpoints(alignment):
             continue
 
         # codons that could give each AA in AA1 and AA2
-        pos1_codons = [rev_code[p] for p in AA1]
-        pos2_codons = [rev_code[p] for p in AA2]
+        pos1_codons = [general_tools.rev_code[p] for p in AA1]
+        pos2_codons = [general_tools.rev_code[p] for p in AA2]
 
         # overhang patterns that can give all AAs
         pos1_patterns = _get_valid_patterns(pos1_codons, reverse=True)
@@ -530,21 +515,6 @@ def _calculate_M(block_alignment, sample=False):
     return M
 
 
-class ProgressOutput:
-    """ Used to show progress during library updates. """
-    def __init__(self, total_itrs):
-        """ Need total number of iterations that will be run. """
-        self.total_itrs = total_itrs
-        self.printed_percentage = -1
-
-    def update(self, current_itr):
-        """ Called at start of each iteration. """
-        current_percentage = round(current_itr * 100 / self.total_itrs)
-        if current_percentage != self.printed_percentage:
-            print(f'{current_percentage}% done\r', end='')
-        self.printed_percentage = current_percentage
-
-
 def update_M(libraries, alignment):
     """ Update libraries with average number of mutations from nearest parent.
 
@@ -555,7 +525,7 @@ def update_M(libraries, alignment):
         alignment: List of tuples that contain the amino acid of each parent
             in the MSA at the position corresponding to the tuple index.
     """
-    progress = ProgressOutput(len(libraries))
+    progress = general_tools.ProgressOutput(len(libraries))
     for itr, (lib_bp, lib_attrs) in enumerate(libraries.items()):
         progress.update(itr)
         block_alignment = _get_block_alignment(lib_bp, alignment)

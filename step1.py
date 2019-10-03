@@ -5,7 +5,9 @@ Example: "python step1.py bgl3_parents.fasta 1gnx.pdb bgl3"
 
 Command Line Args:
     seq_fn: name of sequences file read by muscle
-    pdb_fn: name of PDB file used to make contact map
+    pdb_fn: name of PDB file used to make contact map. If "search", script will
+        search PDB database and find structure with closest identity to first
+        parent sequence
     out_prefix: prefix on output files
 
 Outputs:
@@ -53,6 +55,12 @@ from tools import step1_tools
 seq_fn = sys.argv[1]  # name of sequences file read by muscle
 pdb_fn = sys.argv[2]  # name of PDB file used to make contact map
 out_prefix = sys.argv[3]  # prefix of output files
+
+if pdb_fn == 'search':
+    print('Searching pdb database for closest structure match to first parent',
+          flush=True)
+    p1 = list(SeqIO.parse(seq_fn, 'fasta'))[0]
+    pdb_fn = step1_tools.get_pdb(str(p1.seq))
 
 step1_tools.run_muscle(seq_fn, out_prefix + '_AA.fasta')
 

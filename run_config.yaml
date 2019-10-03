@@ -1,10 +1,13 @@
 # names of step1 input files
+# can make pdb_fn "search" to automatically search
+# the PDB database and download a PDB structure
+# close to the first parent sequence
 seq_fn: bgl3_sequences.fasta
-pdb_fn: 1gnx.pdb
+pdb_fn: search
 
 # run parameters
-num_bl: 4  # number of blocks in library
-minBL: 50  # minimum length of blocks in library
+num_bl: 8  # number of blocks in library
+minBL: 25  # minimum length of blocks in library
 maxBL: 400  # maximum length of blocks in library
 
 # prefix on step 1 output files

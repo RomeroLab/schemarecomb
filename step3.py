@@ -27,6 +27,8 @@ Matplotlib is a required package. The Romero lab group server has it installed.
 import json
 import sys
 
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 libraries_fn = sys.argv[1]
@@ -45,6 +47,7 @@ chosen_lib_attrs = libraries[chosen_lib_bps]
 graph_data = [(l['M'], l['energy'], l['GG_prob']) for l in libraries.values()]
 graph_chosen_lib = (chosen_lib_attrs['M'], chosen_lib_attrs['energy'])
 
+plt.ioff()
 plt.figure(figsize=(16, 9))
 m, e, g = zip(*graph_data)
 plt.scatter(m, e, c=g, vmax=1, vmin=.95)

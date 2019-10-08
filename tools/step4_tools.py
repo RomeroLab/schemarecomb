@@ -18,6 +18,8 @@ def first_overhang_seq(overhang, str_seq):
     overhang bases to the final fragment.
     """
     oh_pos, oh_seq = overhang
+    if oh_pos == -1:
+        return oh_seq  # just append oh onto sequence
     # number of bases on left side of seq that should be on right side of oh
     oh_in_seq = oh_pos + 1
     assert oh_seq[-oh_in_seq:] == str_seq[:oh_in_seq]
@@ -36,6 +38,8 @@ def last_overhang_seq(overhang, str_seq):
     final fragment.
     """
     oh_pos, oh_seq = overhang
+    if oh_pos == 3:
+        return oh_seq  # just append oh onto sequence
     # number of bases on right side of seq that should be in left side of oh
     oh_in_seq = 3 - oh_pos
     assert oh_seq[:oh_in_seq] == str_seq[-oh_in_seq:]

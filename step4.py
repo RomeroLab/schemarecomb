@@ -31,8 +31,6 @@ CDN_alignment_fn = sys.argv[2]  # aligned codon sequences
 chosen_lib_fn = sys.argv[3]  # chosen library, (lib_bps, lib_attrs)
 frags_order_fn = sys.argv[4]  # fragment order output
 
-vector_overhangs = ['TATG', 'TGAG']
-
 # load amino acid alignment
 alignment_SRs = list(SeqIO.parse(AA_alignment_fn, 'fasta'))
 AA_names = [str(i.id) for i in alignment_SRs]

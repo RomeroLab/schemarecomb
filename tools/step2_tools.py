@@ -16,7 +16,6 @@ from tools import general_tools
 dirname = os.path.split(os.path.abspath(os.path.realpath(sys.argv[0])))[0]
 lig_counts_fn = dirname + '/tools/normalized_ligation_counts_18h_37C.p'
 normalized_ligation_counts = pickle.load(open(lig_counts_fn, 'rb'))
-vector_overhangs = ['TATG', 'TGAG']
 threshold = 245  # ligation count threshold for eliminating bad overhangs
 
 complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
@@ -27,7 +26,7 @@ def complementary_sequence(sequence):
     return ''.join(reversed([complement[bp] for bp in sequence]))
 
 
-def acceptable_overhang(overhang):
+def acceptable_overhang(overhang, vector_overhangs):
     """Returns true if overhang is not palindromic, full-GC, below threshold,
     or is not a vector_overhang. """
 
@@ -54,7 +53,6 @@ def acceptable_overhang(overhang):
 
 all_overhangs = [''.join(oh) for oh in itertools.product(general_tools.bases,
                                                          repeat=4)]
-acceptable_overhangs = [oh for oh in all_overhangs if acceptable_overhang(oh)]
 
 
 def _pattern_valid(pattern, pos_cdns):
@@ -122,7 +120,7 @@ def _get_valid_patterns(pos_cdns, reverse=False):
     return valid_patterns
 
 
-def _patterns_to_overhangs(AA1_patterns, AA2_patterns):
+def _patterns_to_overhangs(AA1_patterns, AA2_patterns, acceptable_overhangs):
     """ Converts patterns from the two codon sets into the possible overhangs.
 
     Essentially finds combinations of patterns from the pattern lists that are
@@ -136,6 +134,12 @@ def _patterns_to_overhangs(AA1_patterns, AA2_patterns):
             Wildcard '.' should be at the left of patterns.
         AA2_patterns: List of valid patterns for second residue at breakpoint.
             Wildcard '.' should be at the right of patterns.
+        acceptable_overhangs: List of overhangs that pass the criteria in
+            acceptable_overhang(). Each overhang is of the form
+            (overhang index, overhang sequence).
+
+    Returns:
+        List of overhangs that are valid for the given breakpoint.
     """
     # bin patterns by length
     AA1_binned = [[], [], []]
@@ -161,7 +165,7 @@ def _patterns_to_overhangs(AA1_patterns, AA2_patterns):
     return overhangs
 
 
-def find_GG_breakpoints(alignment):
+def find_GG_breakpoints(alignment, vector_overhangs):
     """ Finds valid Golden Gate sites to place breakpoints.
 
     Valid places to put breakpoints are where Golden Gate assembly can occur
@@ -172,14 +176,20 @@ def find_GG_breakpoints(alignment):
     Args:
         alignment: List of tuples that contain the amino acid of each parent
             in the MSA at the position corresponding to the tuple index.
+        vector_overhangs: Tuple of tuples containing information about the
+            vector overhangs. First and second elements of outer tuple are the
+            start and end overhangs, respectively. Each overhang is of the form
+            (overhang index, overhang sequence).
 
     Returns:
         Dictionary of int: list pairs where keys are valid breakpoint indices
             and values are a list of valid overhangs for the given breakpoint
             represented by (overhang index, overhang sequence) tuples.
     """
+    acceptable_overhangs = [oh for oh in all_overhangs
+                            if acceptable_overhang(oh, vector_overhangs)]
 
-    breakpoints = {0: [(2, vector_overhangs[0])]}  # start with beginning
+    breakpoints = {0: [vector_overhangs[0]]}  # start with beginning
 
     for bp_num in range(1, len(alignment)):
         AA1 = set(alignment[bp_num-1])  # the last postion of block
@@ -196,13 +206,14 @@ def find_GG_breakpoints(alignment):
         pos1_patterns = _get_valid_patterns(pos1_codons, reverse=True)
         pos2_patterns = _get_valid_patterns(pos2_codons)
 
-        bp_overhangs = _patterns_to_overhangs(pos1_patterns, pos2_patterns)
+        bp_overhangs = _patterns_to_overhangs(pos1_patterns, pos2_patterns,
+                                              acceptable_overhangs)
         if not bp_overhangs:
             continue
 
         breakpoints[bp_num] = bp_overhangs
 
-    breakpoints[len(alignment)] = [(0, vector_overhangs[1])]
+    breakpoints[len(alignment)] = [vector_overhangs[1]]
 
     return breakpoints
 

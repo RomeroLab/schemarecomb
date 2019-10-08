@@ -9,6 +9,15 @@ Command Line Args:
     num_bl: number of blocks in libraries
     minBL: minimum block length in libraries
     maxBL: maximum blocki length in libraries
+    start_oh_seq: sequence of start vector overhang
+    temp_start_oh_pos: position of start vector overhang relative to first base
+        of parent sequence. Can range from -4 to -1, inclusive. Must be
+        converted to position relative to imaginary codon at position -1 (i.e.
+        add 3) to stay consistent with breakpoint/overhang positioning
+        convention
+    end_oh_seq: sequence of end vector overhang
+    end_oh_pos: position of end vector overhang first base pair relative to
+        last codon in parent sequences. Can range from 0 to 3, inclusive
     alignment_fn: name of amino acid alignment file, from step 1
     contacts_fn: name of contacts file, from step 1
     libraries_fn: output filename
@@ -33,7 +42,6 @@ BioPython is a required package. The Romero Lab group server has it installed.
 """
 
 import json
-import os
 import sys
 
 from Bio import SeqIO
@@ -44,9 +52,18 @@ from tools import step2_tools
 num_bl = int(sys.argv[1])  # number of blocks in libraries
 minBL = int(sys.argv[2])  # minimum block length in libraries
 maxBL = int(sys.argv[3])  # maximum blocki length in libraries
-alignment_fn = sys.argv[4]  # name of alignment file from Step1
-contacts_fn = sys.argv[5]  # name of contacts file from Step1
-libraries_fn = sys.argv[6]  # output filename
+start_oh_seq = sys.argv[4]  # sequence of start vector overhang
+temp_start_oh_pos = int(sys.argv[5])  # position of start vector overhang,
+# (must be converted to position relative to 1 imaginary codon back)
+start_oh_pos = temp_start_oh_pos + 3
+end_oh_seq = sys.argv[6]  # sequence of end vector overhang
+end_oh_pos = int(sys.argv[7])  # position of end vector overhang
+alignment_fn = sys.argv[8]  # name of alignment file from Step1
+contacts_fn = sys.argv[9]  # name of contacts file from Step1
+libraries_fn = sys.argv[10]  # output filename
+
+vector_overhangs = ((start_oh_pos, start_oh_seq),
+                    (end_oh_pos, end_oh_seq))
 
 print(f'Running SCHEMA-RASPP with the following parameters:', flush=True)
 print(f'{num_bl} blocks, minimum block length: {minBL}, maximum block '
@@ -68,7 +85,7 @@ contacts = {tuple(c): 1 for c in contacts}
 
 # A breakpoint specifies the first position of a new block. breakpoints is a
 # dictionary with <breakpoint>: <potential GG overhangs> pairs.
-breakpoints = step2_tools.find_GG_breakpoints(AA_alignment)
+breakpoints = step2_tools.find_GG_breakpoints(AA_alignment, vector_overhangs)
 print(f'{len(breakpoints)} breakpoints found')
 
 # Generate matrix used to calulcate SCHEMA energy.

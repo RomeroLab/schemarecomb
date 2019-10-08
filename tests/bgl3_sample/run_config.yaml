@@ -3,11 +3,11 @@
 # the PDB database and download a PDB structure
 # close to the first parent sequence
 seq_fn: bgl3_sequences.fasta
-pdb_fn: search
+pdb_fn: 1GNX.pdb
 
 # run parameters
-num_bl: 8  # number of blocks in library
-minBL: 25  # minimum length of blocks in library
+num_bl: 4  # number of blocks in library
+minBL: 80  # minimum length of blocks in library
 maxBL: 400  # maximum length of blocks in library
 
 # specify first vector overhang. start_oh_pos represents position of first
@@ -34,7 +34,7 @@ out_prefix: bgl3
 # name of step 2 output file
 libraries_fn: bgl3_libraries.json
 
-# gg_prob threshold for acceptable libraries (needs to be str for some reason)
+# gg_prob threshold for acceptable libraries
 gg_prob_threshold: "0.95"
 
 # name of step 3 output file

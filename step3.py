@@ -5,6 +5,7 @@ Example: "python step3.py bgl3_libraries.json bgl3_chosen_lib.json"
 
 Command Line Args:
     libraries_fn: name of libraries file generated in step 2
+    gg_prob_thresh: lower bound of gg_prob allowed for accepted libraries
     chosen_lib_fn: name of output chosen library file
 
 Outputs:
@@ -32,13 +33,19 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 libraries_fn = sys.argv[1]
-chosen_lib_fn = sys.argv[2]
+gg_prob_threshold = float(sys.argv[2])
+chosen_lib_fn = sys.argv[3]
 
 with open(libraries_fn, 'r') as f:
     libraries = {tuple(k): v for k, v in json.load(f)}
 
 
 gg_filtered_libs = {k: v for k, v in libraries.items() if v['GG_prob'] >= 0.95}
+
+if not gg_filtered_libs:
+    print('No acceptable Golden Gate libraries found with a GG_prob threshold '
+          f'of {gg_prob_threshold}')
+    sys.exit()
 
 chosen_lib_bps = max(gg_filtered_libs, key=lambda x: gg_filtered_libs[x]['M']
                      - gg_filtered_libs[x]['energy'])

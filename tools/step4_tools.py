@@ -225,13 +225,22 @@ def check_seq(frags):
         next_frag = next_frag.digest(bsaI)
         building_frag = concatenate_frags(building_frag, next_frag)
     CDN_seq = building_frag.translate()
-    assert AA_seq == CDN_seq
+    assert AA_seq == CDN_seq or (CDN_seq[0] == 'M' and AA_seq == CDN_seq[1:])
     assert not [m.start() for m in re.finditer('GGTCTC', building_frag.fwd)]
     assert not [m.start() for m in re.finditer('GGTCTC', building_frag.rev)]
 
 
+def parent_frag_tuple(sr_id):
+    """ Return a tuple (parent name, frag name) from the sr_id. Needs to
+    handle case where parent name has underscores."""
+    *name_list, frag = sr_id.split('_')
+    name_list = [x + '_' for x in name_list[:-1]] + [name_list[-1]]
+    parent_name = ''.join(name_list)
+    return parent_name, frag
+
+
 def verify_fragments(order_srs, AA_srs, lib_bps):
-    order_frags = {tuple(sr.id.split('_')): Fragment.from_SeqRecord(sr)
+    order_frags = {parent_frag_tuple(sr.id): Fragment.from_SeqRecord(sr)
                    for sr in order_srs}
     order_frags = {(p_name, int(blk[-1])-1): v for (p_name, blk), v
                    in order_frags.items()}
@@ -254,7 +263,7 @@ def verify_fragments(order_srs, AA_srs, lib_bps):
             pools[block] = [(parent, v)]
     pools = [pools[i] for i in pools]
 
-    total_chimeras = len(pools) ** len(pools[0])
+    total_chimeras = len(pools[0]) ** len(pools)
     progress = general_tools.ProgressOutput(total_chimeras)
     for j, combo in enumerate(itertools.product(*pools)):
         progress.update(j)

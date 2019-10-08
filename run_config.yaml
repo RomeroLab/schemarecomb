@@ -1,3 +1,7 @@
+# which steps to exclude during run.
+# example: [1, 2] to only run steps 3 and 4
+excluded_steps: []
+
 # names of step1 input files
 # can make pdb_fn "search" to automatically search
 # the PDB database and download a PDB structure

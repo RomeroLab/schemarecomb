@@ -1,9 +1,13 @@
+# which steps to exclude during run.
+# example: [1, 2] to only run steps 3 and 4
+excluded_steps: [1, 2]
+
 # names of step1 input files
 # can make pdb_fn "search" to automatically search
 # the PDB database and download a PDB structure
 # close to the first parent sequence
 seq_fn: bgl3_sequences.fasta
-pdb_fn: 1GNX.pdb
+pdb_fn: search
 
 # run parameters
 num_bl: 4  # number of blocks in library
@@ -34,7 +38,7 @@ out_prefix: bgl3
 # name of step 2 output file
 libraries_fn: bgl3_libraries.json
 
-# gg_prob threshold for acceptable libraries
+# gg_prob threshold for acceptable libraries (needs to be str for some reason)
 gg_prob_threshold: "0.95"
 
 # name of step 3 output file

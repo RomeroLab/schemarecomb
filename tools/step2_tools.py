@@ -359,7 +359,12 @@ def _construct_graph(num_bl, blocks, E_matrix):
     last_bp = max(b[1] for b in blocks)
     ending_blocks = [b for b in blocks if b[1] == last_bp]
     _graph_column(G, ending_blocks, E_matrix, column)
-    last_node = [node for node in G if node.col == column][0]
+    try:
+        last_node = [node for node in G if node.col == column][0]
+    except IndexError as e:
+        print('Graph cannot be constructed. Try using a smaller minBL or less '
+              'blocks.')
+        sys.exit()
 
     # can remove nodes that don't have outgoing edges
     _remove_deadends(G)

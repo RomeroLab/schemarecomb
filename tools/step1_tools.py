@@ -41,6 +41,7 @@ def get_pdb(sequence):
 
     url = 'http://www.rcsb.org/pdb/rest/search'
     lower_bound, upper_bound = 0, 100  # adjust cutoff with average of these
+    pdb_identities = [False for _ in range(101)]  # list of pdbs at each iden %
     while True:
         identity_cutoff = (upper_bound + lower_bound) // 2
         print("Current identity percentage: %s" % identity_cutoff, flush=True)
@@ -60,15 +61,11 @@ def get_pdb(sequence):
         f = urllib.request.urlopen(req)
         result = f.read().decode()
         pdbs = result.strip().split('\n')
+        pdb_identities[identity_cutoff] = pdbs
 
         # if unique pdb found, select it and break
         if (len(pdbs) == 1 and pdbs != ['']):
             pdb = pdbs[0]
-            break
-
-        # if upper_bound and lower_bound are close, break (2 since 1 can lead
-        # to infinite loop)
-        if upper_bound - lower_bound < 2:
             break
 
         # need another refinement round, if no pdbs, avg is too high. if more
@@ -78,6 +75,12 @@ def get_pdb(sequence):
         elif len(pdbs) > 1:
             lower_bound = identity_cutoff
             pdb = pdbs[0]
+
+        # identity % already tested, search is done. pdb was set to first of
+        # pdbs for largest identity % when lower_bound was last reset
+        next_cutoff = (upper_bound + lower_bound) // 2
+        if pdb_identities[next_cutoff]:
+            break
 
     if not pdb:
         print('no pdb found')

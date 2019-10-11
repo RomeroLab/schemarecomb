@@ -4,18 +4,25 @@ import collections
 import itertools
 import os
 import pickle
+from random import choice, sample
 import re
 import sys
 
 import networkx
-import numpy
+import numpy as np
+# import pandas as pd
 
 from tools import general_tools
 
 # Change these as needed
 dirname = os.path.split(os.path.abspath(os.path.realpath(sys.argv[0])))[0]
-lig_counts_fn = dirname + '/tools/normalized_ligation_counts_18h_37C.p'
-normalized_ligation_counts = pickle.load(open(lig_counts_fn, 'rb'))
+# lig_counts_fn = dirname + '/tools/normalized_ligation_counts_18h_37C.p'
+# normalized_ligation_counts = pickle.load(open(lig_counts_fn, 'rb'))
+pd_lig_counts_fn = dirname + '/tools/pd_normalized_ligation_counts_18h_37C.p'
+# normalized_ligation_counts = pd.DataFrame(normalized_ligation_counts)
+# pickle.dump(normalized_ligation_counts, open(pd_lig_counts_fn, 'wb'))
+normalized_ligation_counts = pickle.load(open(pd_lig_counts_fn, 'rb'))
+
 threshold = 245  # ligation count threshold for eliminating bad overhangs
 
 complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
@@ -165,7 +172,100 @@ def _patterns_to_overhangs(AA1_patterns, AA2_patterns, acceptable_overhangs):
     return overhangs
 
 
-def find_GG_breakpoints(alignment, vector_overhangs):
+def _calculate_GG_prob(overhang_seqs):
+    """ Golden Gate ligation probability.
+
+    Calculates the pseudo-probability of correct GG ligation given a list of
+    overhang sequences. Ligation data is from Potapov V et al 2018. This isn't
+    a real probability but scales from 0 to 1 and is roughly representative
+    of the compatibility of the overhangs in the set.
+
+    Args:
+        overhang_seqs: List of str representing overhang DNA sequences.
+
+    Returns:
+        float probability of GG ligation.
+    """
+    complements = [complementary_sequence(oh) for oh in overhang_seqs]
+
+    all_overhang_seqs = overhang_seqs + list(reversed(complements))
+
+    # construct matrix of pairwise overhang ligation counts
+    '''
+    overhang_set_counts = []
+    for oh1 in all_overhang_seqs:
+        oh_set_counts_row = []
+        for oh2 in reversed(all_overhang_seqs):
+            oh_set_counts_row.append(normalized_ligation_counts[oh1][oh2])
+        overhang_set_counts.append(oh_set_counts_row)
+    '''
+    rev_seqs = list(reversed(all_overhang_seqs))
+    overhang_set_counts = normalized_ligation_counts.loc[all_overhang_seqs,
+                                                         rev_seqs]
+    np_oh_counts = overhang_set_counts.to_numpy()
+
+    # find product of matrix diagonals each divided by their row sum
+    '''
+    GG_prob = 1
+    for i in range(len(overhang_set_counts)):
+        GG_prob *= (overhang_set_counts[i][i] / sum(overhang_set_counts[i]))
+    '''
+    GG_prob = np.product(np_oh_counts.diagonal()) / \
+        np.product(np_oh_counts.sum(1))
+
+    return GG_prob
+
+
+def _reduce_overhangs(breakpoints, max_num_ohs):
+    """ Reduce number of overhangs in breakpoints
+
+    The number of overhangs in each value of the breakpoints dictionary is
+    reduced to less than or equal to max_num_ohs. The most orthogonal
+    breakpoints are kept based on the logic of that set being the most
+    versitile later on.
+
+    Args:
+        breakpoints: Dictionary of int: list pairs where keys are valid
+            breakpoint indices and values are a list of valid overhangs for the
+            given breakpoint represented by (overhang index, overhang sequence)
+            tuples.
+        max_num_ohs: int or none specifying maximum number of overhangs in each
+            value of the breakpoints directory or no limit, respectively.
+    """
+
+    progress = general_tools.ProgressOutput(len(breakpoints))
+    for itr, (bp, overhangs) in enumerate(breakpoints.items()):
+        progress.update(itr)
+        if len(overhangs) <= max_num_ohs:
+            continue
+
+        # get rid of redundant overhangs at different positions
+        redundant_ohs = {}
+        for oh_pos, oh_seq in overhangs:
+            try:
+                redundant_ohs[oh_seq].append(oh_pos)
+            except KeyError:
+                redundant_ohs[oh_seq] = [oh_pos]
+        overhangs = [(choice(v), k) for k, v in redundant_ohs.items()]
+
+        # find orthogonal set of overhangs
+        max_p = 0
+        for combo in itertools.combinations(overhangs, max_num_ohs):
+            overhang_seqs = [oh_seq for _, oh_seq in combo]
+            p = _calculate_GG_prob(overhang_seqs)
+            if p > max_p:
+                max_set = combo
+                if max_p == 1.0:
+                    break
+                max_p = p
+
+        if max_p:
+            breakpoints[bp] = max_set
+        else:
+            breakpoints[bp] = sample(overhangs)
+
+
+def find_GG_breakpoints(alignment, vector_overhangs, max_num_ohs=None):
     """ Finds valid Golden Gate sites to place breakpoints.
 
     Valid places to put breakpoints are where Golden Gate assembly can occur
@@ -180,6 +280,8 @@ def find_GG_breakpoints(alignment, vector_overhangs):
             vector overhangs. First and second elements of outer tuple are the
             start and end overhangs, respectively. Each overhang is of the form
             (overhang index, overhang sequence).
+        max_num_ohs: int or none specifying maximum number of overhangs in each
+            value of the breakpoints directory or no limit, respectively.
 
     Returns:
         Dictionary of int: list pairs where keys are valid breakpoint indices
@@ -215,6 +317,9 @@ def find_GG_breakpoints(alignment, vector_overhangs):
 
     breakpoints[len(alignment)] = [vector_overhangs[1]]
 
+    if max_num_ohs:
+        _reduce_overhangs(breakpoints, max_num_ohs)
+
     return breakpoints
 
 
@@ -236,7 +341,7 @@ def generate_weighted_E_matrix(alignment, weighted_contacts):
     Returns:
         SCHEMA energy matrix, used for calculating the SCHEMA energy of blocks.
     """
-    E_matrix = numpy.zeros((len(alignment), len(alignment)))
+    E_matrix = np.zeros((len(alignment), len(alignment)))
     for (i, j), weight in weighted_contacts.items():
         AAs_i, AAs_j = alignment[i], alignment[j]
         parental = set(zip(AAs_i, AAs_j))  # get parental pairs of AAs at i,j
@@ -361,7 +466,7 @@ def _construct_graph(num_bl, blocks, E_matrix):
     _graph_column(G, ending_blocks, E_matrix, column)
     try:
         last_node = [node for node in G if node.col == column][0]
-    except IndexError as e:
+    except IndexError:
         print('Graph cannot be constructed. Try using a smaller minBL or less '
               'blocks.')
         sys.exit()
@@ -553,40 +658,6 @@ def update_M(libraries, alignment):
         block_alignment = _get_block_alignment(lib_bp, alignment)
         M = _calculate_M(block_alignment)
         lib_attrs['M'] = M
-
-
-def _calculate_GG_prob(overhang_seqs):
-    """ Golden Gate ligation probability.
-
-    Calculates the pseudo-probability of correct GG ligation given a list of
-    overhang sequences. Ligation data is from Potapov V et al 2018. This isn't
-    a real probability but scales from 0 to 1 and is roughly representative
-    of the compatibility of the overhangs in the set.
-
-    Args:
-        overhang_seqs: List of str representing overhang DNA sequences.
-
-    Returns:
-        float probability of GG ligation.
-    """
-    complements = [complementary_sequence(oh) for oh in overhang_seqs]
-
-    all_overhang_seqs = overhang_seqs + list(reversed(complements))
-
-    # construct matrix of pairwise overhang ligation counts
-    overhang_set_counts = []
-    for oh1 in all_overhang_seqs:
-        oh_set_counts_row = []
-        for oh2 in reversed(all_overhang_seqs):
-            oh_set_counts_row.append(normalized_ligation_counts[oh1][oh2])
-        overhang_set_counts.append(oh_set_counts_row)
-
-    # find product of matrix diagonals each divided by their row sum
-    GG_prob = 1
-    for i in range(len(overhang_set_counts)):
-        GG_prob *= (overhang_set_counts[i][i] / sum(overhang_set_counts[i]))
-
-    return GG_prob
 
 
 def update_GG_prob(libraries, breakpoints):

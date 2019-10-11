@@ -84,18 +84,24 @@ with open(contacts_fn, 'r') as f:
 contacts = {tuple(c): 1 for c in contacts}
 
 # A breakpoint specifies the first position of a new block. breakpoints is a
-# dictionary with <breakpoint>: <potential GG overhangs> pairs.
-breakpoints = step2_tools.find_GG_breakpoints(AA_alignment, vector_overhangs)
-print(f'{len(breakpoints)} breakpoints found')
+# dictionary with <breakpoint>: <potential GG overhangs> pairs. Note that
+# breakpoints are restricted to having 4 possible overhangs to speed up the
+# update GG_prob call below. Increasing this number will potentially lead to
+# factorial increases in run time for this call. Set to 'None' to avoid this
+# restriction and potentially run this step faster.
+print('Finding breakpoints', flush=True)
+breakpoints = step2_tools.find_GG_breakpoints(AA_alignment, vector_overhangs,
+                                              max_num_ohs=4)
+print(f'{len(breakpoints)} breakpoints found', flush=True)
 
 # Generate matrix used to calulcate SCHEMA energy.
 E_matrix = step2_tools.generate_weighted_E_matrix(AA_alignment, contacts)
-print('E matrix generated')
+print('E matrix generated', flush=True)
 
 # Generate all allowed blocks. blocks is a list of tuples with starting and
 # ending breakpoints.
 blocks = step2_tools.generate_blocks(breakpoints, minBL, maxBL)
-print('Blocks generated')
+print('Blocks generated', flush=True)
 
 # Generate libraries with the minimum value for a given minimum and maximum
 # block length combination. libraries is a dictionary of
@@ -104,7 +110,8 @@ print('Blocks generated')
 print('Starting shortest path recombination to calculate E', flush=True)
 libraries = step2_tools.shortest_path_recombination(num_bl, blocks, E_matrix)
 lib_len = len(libraries)
-print(f'Shortest path recombination complete: {lib_len} libraries found')
+print(f'Shortest path recombination complete: {lib_len} libraries found',
+      flush=True)
 
 # Add 'M': <average chimera mutations> pairs to the libraries values.
 print('Updating M', flush=True)
@@ -114,13 +121,13 @@ print('M updated', flush=True)
 # Add 'GG_prob': <Golden Gate probability> and 'GG_sites': <valid overhangs
 # for each lib_bp> pairs the libraries values.
 # Requires 'normalized_ligation_counts_18h_37C.p' file to be in code directory.
-print('Updating GG probabilities')
+print('Updating GG probabilities', flush=True)
 libraries = step2_tools.update_GG_prob(libraries, breakpoints)
-print('GG probabilities updated')
+print('GG probabilities updated', flush=True)
 
 # Convert libraries to be json-compatible and save.
 libraries = [(k, v) for k, v in libraries.items()]
 with open(libraries_fn, 'w') as f:
     json.dump(libraries, f)
 
-print(f'Saved libraries to "{libraries_fn}"')
+print(f'Saved libraries to "{libraries_fn}"', flush=True)

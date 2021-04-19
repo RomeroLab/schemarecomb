@@ -6,3 +6,5 @@ General Workflow:
   2.  Use run_raspp.py with the pickled MSA and contacts files as input to generate SCHEMA_gg libraries.
   3.  Run read_raspp_GG_output.py to select a library and save it as a pickled file.
   4.  Use generate_gg_dna.py with the codon-aligned nucleotide sequences to generate golden gate fragments for ordering.
+
+_Forked from RomeroLab for personal modification. Will probably merge later._

@@ -1,3 +1,9 @@
+'''Library for choosing additional sequences for parent alignments.
+
+The main function is .
+'''
+
+
 from Bio import pairwise2
 
 
@@ -86,7 +92,7 @@ class Tree:
         return [shape[i] for i, _ in enumerate(shape)]
 
 
-def minmax(sorted_cand_diffs, num_additional):
+def choose_candidates(sorted_cand_diffs, num_additional):
     # TODO: assure sorted_cand_diffs is sorted
     print(num_additional)
     tree = Tree(num_additional)

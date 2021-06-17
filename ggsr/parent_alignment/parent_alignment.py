@@ -104,22 +104,22 @@ class ParentAlignment:
         #     candidate_sequences = iter(candidate_sequences)
 
         import pickle
-        '''
         piden = desired_identity
         cand_diffs = []
         print(len(candidate_sequences))
+        print('calcing')
         for i, cand in enumerate(candidate_sequences):
             print(i, '\r', end='')
             max_diff = max(abs(piden - _calc_identity(cand, x))
                            for x in self.sequences)
             cand_diffs.append((cand, max_diff))
 
+        # sorted is fast enough (but could be faster with heapq)
         sorted_cand_diffs = list(sorted(cand_diffs, key=lambda x: x[1]))
         print('dumping')
         pickle.dump(sorted_cand_diffs,
                     open('../../tests/bgl3_sample/sorted_cand_diffs.pkl',
                          'wb'))
-        '''
 
         print('loading')
         sorted_cand_diffs = pickle.load(
@@ -127,8 +127,8 @@ class ParentAlignment:
                          'rb'))
         print('done loading')
 
-        from choose_from_candidates import minmax
-        best_cands = minmax(sorted_cand_diffs, num_additional)
+        from choose_candidates import choose_candidates
+        best_cands = choose_candidates(sorted_cand_diffs, num_additional)
 
         from itertools import combinations
         cands = sorted_cand_diffs[:20]
@@ -162,9 +162,11 @@ class ParentAlignment:
         pass
 
 
-def _calc_identity(seq1, seq2):
-    aln_result, = pairwise2.align.globalxx(seq1, seq2, one_alignment_only=True)
-    return aln_result.score / (aln_result.end + 1)
+def _calc_identity(sr1, sr2):
+    s1 = str(sr1.seq)
+    s2 = str(sr2.seq)
+    aln_result2 = pairwise2.align.globalxx(s1, s2, score_only=True)
+    return aln_result2 / (len(s1) + len(s2) - aln_result2)
 
 
 def _average_identity(sequences):

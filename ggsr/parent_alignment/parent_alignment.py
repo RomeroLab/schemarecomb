@@ -8,19 +8,30 @@ from Bio import pairwise2
 
 
 class ParentAlignment:
-    def __init__(self, sequences):
+    def __init__(self, sequences, auto_align=False):
         assert len(sequences) > 0
+        self.auto_align = auto_align
         self.sequences = sequences
-        self.aligned = False  # whether muscle has been run
+        self.aligned_sequences = None  # whether muscle has been run
+
+    def __setattr__(self, name, value):
+        super().__setattr__(name, value)
+
+        # If sequences is changed, want to modify aligned_sequences.
+        if name == 'sequences':
+            if self.auto_align:
+                self.align()
+            else:
+                self.aligned_sequences = None
 
     @classmethod
-    def from_fasta(cls, fasta_fn):
+    def from_fasta(cls, fasta_fn, **args):
         seqs = list(SeqIO.parse(fasta_fn, 'fasta'))
-        return cls(seqs)
+        return cls(seqs, **args)
 
     @classmethod
     def from_single(cls, sequence, name=None, file=False, num_sequences=3,
-                    desired_identity=0.7):
+                    desired_identity=0.7, **args):
         """Makes alignment from single sequence."""
         if isinstance(sequence, str):
             if name is None:
@@ -33,7 +44,7 @@ class ParentAlignment:
         else:
             raise TypeError('sequence parameter must be a String or '
                             'Bio.SeqRecord.')
-        pa = cls(sequence)
+        pa = cls(sequence, **args)
         pa.obtain_seqs(num_sequences, desired_identity)
         return pa
 
@@ -106,7 +117,6 @@ class ParentAlignment:
         import pickle
         piden = desired_identity
         cand_diffs = []
-        print(len(candidate_sequences))
         print('calcing')
         for i, cand in enumerate(candidate_sequences):
             print(i, '\r', end='')
@@ -130,6 +140,8 @@ class ParentAlignment:
         from choose_candidates import choose_candidates
         best_cands = choose_candidates(sorted_cand_diffs, num_additional)
 
+        # naive way, probably a good test?
+        '''
         from itertools import combinations
         cands = sorted_cand_diffs[:20]
         best_diff = 1.0
@@ -140,12 +152,10 @@ class ParentAlignment:
             # max_diff = 0.0
             max_diff = max([sr[1] for sr in srs])
             for i, (sr, sra) in enumerate(srs):
-                '''
-                for p in self.sequences:
-                    diff = abs(_calc_identity(sr, p) - 0.7)
-                    if diff > max_diff:
-                        max_diff = diff
-                '''
+                # for p in self.sequences:
+                #     diff = abs(_calc_identity(sr, p) - 0.7)
+                #     if diff > max_diff:
+                #         max_diff = diff
                 for sr2, _ in srs[i+1:]:
                     diff = abs(_calc_identity(sr, sr2) - 0.7)
                     if diff > max_diff:
@@ -153,13 +163,42 @@ class ParentAlignment:
             if max_diff < best_diff:
                 best_diff = max_diff
                 best_set = srs
-
         print([bs[0].id for bs in best_set])
+        '''
+
+        print(len(self.sequences))
+        self.sequences += best_cands
+        print(len(self.sequences))
 
         self.aligned = False  # new sequences added, need to run muscle again
 
     def align(self):
-        pass
+        print('running alignment')
+        import os
+        from subprocess import CalledProcessError, run
+
+        IN_FN = 'temp_muscle_input.fasta'
+        OUT_FN = 'temp_muscle_output.fasta'
+
+        # make file for MUSCLE input
+        SeqIO.write(self.sequences, IN_FN, 'fasta')
+        in_labels = [SR.name for SR in SeqIO.parse(IN_FN, 'fasta')]
+
+        # run MUSCLE
+        try:
+            run(f'muscle -in {IN_FN} -out {OUT_FN}', shell=True, check=True)
+        except CalledProcessError:
+            print('Something is wrong with MUSCLE call. Is MUSCLE installed?')
+            raise
+        finally:
+            os.remove(IN_FN)
+
+        # need to reorder MUSCLE output to be consistent with input
+        out_SRs = {SR.name: SR for SR in SeqIO.parse(OUT_FN, 'fasta')}
+        self.aligned_sequences = [out_SRs[label] for label in in_labels]
+
+        print('Muscle done, cleaning up files')
+        os.remove(OUT_FN)
 
 
 def _calc_identity(sr1, sr2):
@@ -182,12 +221,12 @@ def _average_identity(sequences):
 
 
 if __name__ == '__main__':
-    aln = ParentAlignment.from_fasta('../../tests/bgl3_sample/bgl3_p1-2.fasta')
-    '''
+    aln = ParentAlignment.from_fasta('../../tests/bgl3_sample/bgl3_p1-2.fasta',
+                                     auto_align=True)
     cands = list(SeqIO.parse('../../tests/bgl3_sample/bgl3_p3-6.fasta',
                              'fasta'))
     aln.add_from_candidates(cands, 4)
-    '''
+    # aln.align()
     '''
     import blast_query
     qs = list(SeqIO.parse('../../tests/bgl3_sample/bgl3_p1-2.fasta',
@@ -197,6 +236,8 @@ if __name__ == '__main__':
     SeqIO.write(candidate_srs, '../../tests/bgl3_sample/query_seqs2.fasta',
                 'fasta')
     '''
+    '''
     cands = list(SeqIO.parse('../../tests/bgl3_sample/query_seqs.fasta',
                              'fasta'))
     aln.add_from_candidates(cands, 5, 0.7)
+    '''

@@ -75,11 +75,11 @@ class ParentAlignment:
     string instead:
     >>> from ggsr.parent_alignment import ParentAlignent
     >>> sequence = 'MKQHKAMIVALIVICITAVVAALVTRKDLCEVHIRTGQTEVAVF'
-    >>> def from_single(cls,
-    ...                 sequence=sequence,
-    ...                 name='YP_025292.1',
-    ...                 num_final_sequences=6,
-    ...                 desired_identity=0.65)
+    >>> p_aln = from_single(cls,
+    ...                     sequence=sequence,
+    ...                     name='YP_025292.1',
+    ...                     num_final_sequences=6,
+    ...                     desired_identity=0.65)
     """
 
     def __init__(self, sequences: list[SeqRecord], auto_align: bool = True):

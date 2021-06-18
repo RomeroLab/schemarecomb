@@ -14,6 +14,7 @@ the order of the sequences.
 """
 
 from itertools import combinations
+import json
 import os
 from subprocess import CalledProcessError, run
 from typing import Optional, Union
@@ -41,6 +42,12 @@ class ParentAlignment:
         obtain_seqs: BLAST search to find and add candidate sequences.
         add_from_candidates: Choose to add from a list of candidate sequences.
         align: Align sequences with MUSCLE and set to aligned_sequences.
+        to_json: Convert instance to JSON.
+
+    Constructors:
+        from_fasta: Construct instance from FASTA file.
+        from_single: Construct instance from sequence string or SeqRecord.
+        from_json: Construct instance from JSON.
 
     Instances of this class are passed into functions further down the GGSR
     pipeline.
@@ -80,9 +87,21 @@ class ParentAlignment:
     ...                     name='YP_025292.1',
     ...                     num_final_sequences=6,
     ...                     desired_identity=0.65)
+
+    You can also save a ParentAlignment as a JSON:
+    >>> from ggsr.parent_alignment import ParentAlignent
+    >>> p_aln = ParentAlignment.from_fasta('P450_AA_sequences.fasta')
+    >>> aln_json = p_aln.to_json()
+    >>> with open('p_aln.json', 'w') as f:
+    ...     f.write(aln_json)
+    >>> with open('p_aln.json', 'r') as f:
+    ...     aln_json2 = f.read()
+    >>> p_aln2 = ParentAlignment.from_json(aln_json2)
+    >>> # p_aln and p_aln2 should be the same
     """
 
-    def __init__(self, sequences: list[SeqRecord], auto_align: bool = True):
+    def __init__(self, sequences: list[SeqRecord.SeqRecord],
+                 auto_align: bool = True):
         """Initalize ParentAlignment.
 
         Args:
@@ -122,7 +141,7 @@ class ParentAlignment:
 
     @classmethod
     def from_single(cls,
-                    sequence: Union[str, SeqRecord],
+                    sequence: Union[str, SeqRecord.SeqRecord],
                     name: Optional[str] = None,
                     num_final_sequences: int = 3,
                     desired_identity: float = 0.7,
@@ -144,12 +163,12 @@ class ParentAlignment:
                 raise ValueError('name parameter is required when sequence is '
                                  'a string.')
             sequence = SeqRecord.SeqRecord(Seq.Seq(sequence), id=name)
-        elif isinstance(sequence, SeqRecord):
+        elif isinstance(sequence, SeqRecord.SeqRecord):
             if name is not None:
                 sequence.id = name
         else:
             raise TypeError('sequence parameter must be a String or '
-                            'Bio.SeqRecord.')
+                            'Bio.SeqRecord.SeqRecord.')
         pa = cls(sequence, **kwargs)
         pa.obtain_seqs(num_final_sequences, desired_identity)
         return pa
@@ -268,13 +287,70 @@ class ParentAlignment:
         print('Muscle done, cleaning up files')
         os.remove(OUT_FN)
 
+    def to_json(self):
+        """Convert instance to JSON."""
+        if self.aligned_sequences is None:
+            seq_records = self.sequences
+            aligned = False
+        else:
+            seq_records = self.aligned_sequences
+            aligned = True
+
+        # TODO: probably add a version?
+        out_dict = {'seq_records': [], 'aligned': aligned,
+                    'auto_align': self.auto_align}
+        # important to preserve order of sequences
+        for sr in seq_records:
+            sr_dict = {'seq': str(sr.seq), 'id': sr.id, 'name': sr.name,
+                       'description': sr.description}
+            out_dict['seq_records'].append(sr_dict)
+        return json.dumps(out_dict)
+
+    @classmethod
+    def from_json(cls, in_json: str):
+        """Construct instance from JSON."""
+        in_dict = json.loads(in_json)
+
+        seq_records = []
+        for sr_dict in in_dict['seq_records']:
+            seq = Seq.Seq(sr_dict['seq'])
+            sr_id = sr_dict['id']
+            sr_name = sr_dict['name']
+            sr_desc = sr_dict['description']
+            sr = SeqRecord.SeqRecord(seq, id=sr_id, name=sr_name,
+                                     description=sr_desc)
+            seq_records.append(sr)
+
+        # new ParentAlignment with auto_align temporarily disabled
+        new_instance = cls(seq_records, auto_align=False)
+
+        if in_dict['aligned']:
+            # move sequences to aligned_sequences and recalculate unaligned
+            unaligned_seqs = []
+            for sr in seq_records:
+                u_str = str(sr.seq).replace('-', '')
+                u_seq = Seq.Seq(u_str)
+                u_sr = SeqRecord.SeqRecord(u_seq, id=sr.id, name=sr.name,
+                                           description=sr.description)
+                unaligned_seqs.append(u_sr)
+            new_instance.sequences = unaligned_seqs
+            new_instance.aligned_sequences = seq_records
+
+        new_instance.auto_align = in_dict['auto_align']
+        return new_instance
+
 
 if __name__ == '__main__':
     aln = ParentAlignment.from_fasta('../../tests/bgl3_sample/bgl3_p1-2.fasta',
                                      auto_align=True)
-    cands = list(SeqIO.parse('../../tests/bgl3_sample/bgl3_p3-6.fasta',
-                             'fasta'))
-    aln.add_from_candidates(cands, 4)
+    aln_json = aln.to_json()
+    aln2 = ParentAlignment.from_json(aln_json)
+    print(aln)
+    print(aln2)
+
+    # cands = list(SeqIO.parse('../../tests/bgl3_sample/bgl3_p3-6.fasta',
+    #                          'fasta'))
+    # aln.add_from_candidates(cands, 4)
     # aln.align()
     '''
     import blast_query

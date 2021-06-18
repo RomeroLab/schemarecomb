@@ -1,15 +1,13 @@
 '''Library for choosing additional sequences for parent alignments.
 
-The main function is .
+choose_candidates is the main function. The TreeNode and Tree classes help
+choose_candidates implement a tree-based search over all possible length-
+<num_additional> combinations of candidate sequences. Importantly, the search
+is short circuited such that the function returns if the best combination is
+known to be found early.
 '''
 
-
-from Bio import pairwise2
-
-
-def _calc_identity(seq1, seq2):
-    aln_result, = pairwise2.align.globalxx(seq1, seq2, one_alignment_only=True)
-    return aln_result.score / (aln_result.end + 1)
+from .utils import _calc_identity
 
 
 class TreeNode:
@@ -55,7 +53,6 @@ class Tree:
 
     def add_cand(self, cand, cand_diff):
         # recursive breadth-first
-        print(self.best_diff)
         stack = [self.base]
         while stack:
             curr_node = stack.pop()
@@ -92,18 +89,28 @@ class Tree:
         return [shape[i] for i, _ in enumerate(shape)]
 
 
-def choose_candidates(sorted_cand_diffs, num_additional):
+def choose_candidates(candidate_sequences, existing_parents, num_additional,
+                      desired_identity):
+
+    # For each candidate, find the maximum identity difference with each
+    # parent.
+    cand_diffs = []
+    for i, cand in enumerate(candidate_sequences):
+        print(i, '\r', end='')
+        max_diff = max(abs(desired_identity - _calc_identity(cand, x))
+                       for x in existing_parents)
+        cand_diffs.append((cand, max_diff))
+
+    # Sort candidates by difference to enable short-circuiting.
+    # sorted is fast enough (but could be faster with heapq)
+    sorted_cand_diffs = list(sorted(cand_diffs, key=lambda x: x[1]))
+
     # TODO: assure sorted_cand_diffs is sorted
-    print(num_additional)
     tree = Tree(num_additional)
-    print(tree.shape())
     for i, (cand, cand_diff) in enumerate(sorted_cand_diffs):
         ret = tree.add_cand(cand, cand_diff)
-        print(i, tree.shape())
         if ret == 'best found':
             break
         if i > 5:
             break
-    print(tree.best_diff)
-    print(tree.best_leaf)
     return tree.best_leaf.cands

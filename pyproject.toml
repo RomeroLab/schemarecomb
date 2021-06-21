@@ -1,6 +1,16 @@
+[tool.poetry]
+name = 'ggsr'
+version = '0.0.1'
+description = 'Designing recombinant protein libraries.'
+authors = ['Bennett Bremer <bennettjamesbremer@gmail.com>']
+
+[tool.poetry.dependencies]
+python = '^3.9'
+biopython = '^1.79'
+
+[tool.poetry.dev-dependencies]
+pytest = '^6.2.4'
+
 [build-system]
-requires = [
-    "setuptools>=42",
-    "wheel"
-]
-build-backend = "setuptools.build_meta"
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

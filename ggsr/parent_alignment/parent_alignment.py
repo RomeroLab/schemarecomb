@@ -101,7 +101,7 @@ class ParentAlignment:
     """
 
     def __init__(self, sequences: list[SeqRecord.SeqRecord],
-                 auto_align: bool = True):
+                 auto_align: bool = True) -> None:
         """Initalize ParentAlignment.
 
         Args:
@@ -116,7 +116,7 @@ class ParentAlignment:
         self.aligned_sequences = None  # not needed here, included for clarity
         self.sequences = sequences  # must be set last since it affects others
 
-    def __setattr__(self, name, value):
+    def __setattr__(self, name, value) -> None:
         """Set aligned_sequences according to auto_align if sequences reset."""
         super().__setattr__(name, value)
 
@@ -128,7 +128,7 @@ class ParentAlignment:
                 self.aligned_sequences = None
 
     @classmethod
-    def from_fasta(cls, fasta_fn: str, **kwargs):
+    def from_fasta(cls, fasta_fn: str, **kwargs) -> 'ParentAlignment':
         """Contruct instance from FASTA file.
 
         Args:
@@ -145,7 +145,7 @@ class ParentAlignment:
                     name: Optional[str] = None,
                     num_final_sequences: int = 3,
                     desired_identity: float = 0.7,
-                    **kwargs):
+                    **kwargs) -> 'ParentAlignment':
         """Contruct instance from single amino acid sequence.
 
         Args:
@@ -175,7 +175,7 @@ class ParentAlignment:
 
     def obtain_seqs(self,
                     num_final_sequences,
-                    desired_identity: Optional[float] = None):
+                    desired_identity: Optional[float] = None) -> None:
         """Adds new sequences with BLAST.
 
         Args:
@@ -196,7 +196,7 @@ class ParentAlignment:
     def add_from_candidates(self,
                             candidate_sequences: list[SeqRecord],
                             num_final_sequences: int,
-                            desired_identity: float = None):
+                            desired_identity: float = None) -> None:
         """Add new parent sequences from list of candidates.
 
         Finds the set of sequences in candidate_sequences that gives the
@@ -260,7 +260,7 @@ class ParentAlignment:
 
         self.sequences += best_cands
 
-    def align(self):
+    def align(self) -> None:
         """Align sequences with MUSCLE and set to aligned_sequences."""
         print('running alignment')
 
@@ -287,7 +287,7 @@ class ParentAlignment:
         print('Muscle done, cleaning up files')
         os.remove(OUT_FN)
 
-    def to_json(self):
+    def to_json(self) -> str:
         """Convert instance to JSON."""
         if self.aligned_sequences is None:
             seq_records = self.sequences
@@ -307,7 +307,7 @@ class ParentAlignment:
         return json.dumps(out_dict)
 
     @classmethod
-    def from_json(cls, in_json: str):
+    def from_json(cls, in_json: str) -> 'ParentAlignment':
         """Construct instance from JSON."""
         in_dict = json.loads(in_json)
 

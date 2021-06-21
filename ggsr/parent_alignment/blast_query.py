@@ -1,41 +1,60 @@
+# blast_query.py
+
+"""Wrapper for querying BLAST over the web."""
+
 import time
+from collections.abc import Generator
 from urllib.request import urlopen
 from urllib.parse import urlencode
 from urllib.request import Request
 
-from Bio import Entrez, SeqIO
+from Bio import Entrez, SeqIO, SeqRecord
 from Bio.Blast.NCBIWWW import _parse_qblast_ref_page
 # ^This import is Python heresy but who's going to stop me?
 
 NCBI_BLAST_URL = "https://blast.ncbi.nlm.nih.gov/Blast.cgi"
 
 
-def blast_query(query_seq, maximum_hits=10000):
-    '''Gets sequences from query_seq BLAST hits.
+def blast_query(query_seq: str, database: str = 'refseq_protein',
+                maximum_hits: int = 10000) -> Generator[SeqRecord.SeqRecord]:
+    """Gets sequences from query_seq BLAST hits.
 
     Direct copy of Peter Cock's Bio.Blast.NCBIWWW.qblast, with simplifications
     and added progress print-outs.
 
+    Args:
+        query_seq: Query sequence for BLAST search.
+        database: BLAST database to search. Must be either 'refseq_protein' or
+            'pdbaa'
+        maximum_hits: Maximum number of hits allowed to be returned. Affects
+            runtime: reducing this number is faster but you risk missing good
+            candidate sequences.
+
     Returns:
-        Fasta generator for sequence hits.
-    '''
+        FASTA generator for sequence hits.
+    """
+
+    # Only refseq_protein and pdbaa databases supported.
+    if database not in ('refseq_protein', 'pdbaa'):
+        raise ValueError('database must be "refseq_protein" or "pdbaa"')
+
+    # Initiate BLAST search.
     params = [
         ('PROGRAM', 'blastp'),
-        ('DATABASE', 'refseq_protein'),
+        ('DATABASE', database),
         ('QUERY', query_seq),
         ('HITLIST_SIZE', maximum_hits),
         ("CMD", "Put"),
     ]
-
     message = urlencode(params).encode()
     request = Request(NCBI_BLAST_URL, message, {"User-Agent":
                                                 "BiopythonClient"})
     handle = urlopen(request)
 
-    rid, rtoe = _parse_qblast_ref_page(handle)
+    # Get BLAST Request ID.
+    rid, _ = _parse_qblast_ref_page(handle)
 
-    print(rid)
-
+    # Setup BLAST job checking request.
     params = [
         ('RID', rid),
         ('FORMAT_TYPE', 'XML'),
@@ -43,6 +62,7 @@ def blast_query(query_seq, maximum_hits=10000):
     ]
     message = urlencode(params).encode()
 
+    # Query BLAST once a minute until job is done.
     previous = 0
     delay = 20  # seconds
     while True:
@@ -78,10 +98,9 @@ def blast_query(query_seq, maximum_hits=10000):
         if status.upper() == "READY":
             break
 
-    print(results)
-
     print('Job complete.')
 
+    # Request to get hit accessions from search results.
     params = [
         ('RID', rid),
         ('RESULTS_FILE', 'on'),
@@ -92,33 +111,29 @@ def blast_query(query_seq, maximum_hits=10000):
         ('QUERY_INDEX', '0'),
         ('CMD', 'Get'),
     ]
-
     message = urlencode(params).encode()
     request = Request(NCBI_BLAST_URL, message, {"User-Agent":
                                                 "BiopythonClient"})
     handle = urlopen(request)
 
-    headers = handle.readline().decode().strip().split(',')
-    acclen_index = headers.index('Acc. Len')
-    acc_index = -1  # split by ',' unfortunately splits last field in two
+    # Unpack accessions into candidate_accessions list.
+    handle.readline()  # headers
     candidate_accessions = []
     for line in handle:
         fields = line.decode().strip().split(',')
         if len(fields) <= 1:
             continue
-        accession = fields[acc_index].replace('"', '').replace(')', '')
-        candidate = fields[acclen_index], accession
-        candidate_accessions.append(candidate)
+        # Split by ',' unfortunately splits last field in two.
+        accession = fields[-1].replace('"', '').replace(')', '')
+        candidate_accessions.append(accession)
 
-    # TODO: filter based on acclen
     # TODO: query for new sequences on demand (generator)
-    # TODO: Error handling and input verification throughout module
 
-    accessions = [x[1] for x in candidate_accessions]
-    acc_str = ','.join(accessions)
+    # Get accession sequences from NCBI.
+    acc_str = ','.join(candidate_accessions)
     Entrez.email = 'bbremer@bu.edu'  # this probably needs to change
     fasta_str = Entrez.efetch(db='protein', id=acc_str, rettype='fasta')
-    
+
     print('returning')
 
     return SeqIO.parse(fasta_str, 'fasta')

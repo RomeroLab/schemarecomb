@@ -111,7 +111,8 @@ class ParentAlignment:
                 Note that align will be called upon initialization if
                 auto_align == True.
         """
-        assert len(sequences) > 0
+        if len(sequences) < 1:
+            raise ValueError('sequences must not be empty.')
         self.auto_align = auto_align
         self.aligned_sequences = None  # not needed here, included for clarity
         self.sequences = sequences  # must be set last since it affects others

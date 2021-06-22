@@ -47,8 +47,8 @@ class TreeNode:
             cand: New candidate sequence.
             new_pc_diff: Maximum out of |% identity - target_identity| between
                 cand and each parent. This is assumed to be greater than the
-                "pc_iden" of anything in self.cands, by virtue of pre-sorting
-                based on the pc_iden.
+                "pc_diff" of anything in self.cands, by virtue of pre-sorting
+                based on the pc_diff.
             diff_thresh: Current known optimum for a valid set of candidates.
                 If the potentially new set has a higher diff than this value,
                 we can skip creation because this node and all its children
@@ -62,7 +62,7 @@ class TreeNode:
             new_cc_diff = max(abs(0.7 - _calc_identity(cand, x))
                               for x in self.cands)
             # Choose maximum between old cc_diff and new_cc_diff.
-            new_cc_diff = max(self.max_cc_iden, new_cc_diff)
+            new_cc_diff = max(self.max_cc_diff, new_cc_diff)
         else:
             new_cc_diff = 0.0  # only one candidate in new node
         if max(new_cc_diff, new_pc_diff) >= diff_thresh:
@@ -115,8 +115,8 @@ class Tree:
             cand: New candidate sequence.
             new_pc_diff: Maximum out of |% identity - target_identity| between
                 cand and each parent. This is assumed to be greater than the
-                "pc_iden" of anything in self.cands, by virtue of pre-sorting
-                based on the pc_iden.
+                "pc_diff" of anything in self.cands, by virtue of pre-sorting
+                based on the pc_diff.
         """
         # Breadth-first traversal over tree, adding new cand to each node.
         stack = [self.base]
@@ -138,11 +138,11 @@ class Tree:
                 if leaf is not None:
                     # leaf max diff is smaller than self.best_diff, new best!
                     self.best_leaf = leaf
-                    self.best_diff = max(leaf.max_cc_iden, leaf.max_pc_iden)
+                    self.best_diff = max(leaf.max_cc_diff, leaf.max_pc_diff)
 
-                    # Every future leaf will have equal or greater max_pc_iden,
+                    # Every future leaf will have equal or greater max_pc_diff,
                     # so this leaf must be the best one and we can stop.
-                    if leaf.max_pc_iden >= leaf.max_cc_iden:
+                    if leaf.max_pc_diff >= leaf.max_cc_diff:
                         return 'best found'
 
                 continue
@@ -186,6 +186,7 @@ def choose_candidates(candidate_sequences: list[SeqRecord.SeqRecord],
 
     # For each candidate, find the maximum identity difference with each
     # parent.
+
     cand_diffs = []
     for i, cand in enumerate(candidate_sequences):
         print(i, '\r', end='')
@@ -200,7 +201,7 @@ def choose_candidates(candidate_sequences: list[SeqRecord.SeqRecord],
     # Construct Tree and find the best set. In the worst case this might take
     # awhile.
     # TODO: Bound the time this requires?
-    tree = Tree(num_additional)
+    tree = Tree(num_additional, desired_identity)
     for cand, pc_diff in sorted_cand_diffs:
         ret = tree.add_cand(cand, pc_diff)
         if ret == 'best found':

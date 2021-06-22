@@ -193,7 +193,8 @@ class ParentAlignment:
                              f' but there are already {len(self.sequences)} '
                              'sequences.')
 
-        query_seq = self.sequences[0]
+        query_sr = self.sequences[0]
+        query_seq = str(query_sr.seq)
         candidate_seqs_iter = blast_query(query_seq)
 
         self.add_from_candidates(candidate_seqs_iter, num_final_sequences,

@@ -175,7 +175,7 @@ class ParentAlignment:
         return pa
 
     def obtain_seqs(self,
-                    num_final_sequences,
+                    num_final_sequences: int,
                     desired_identity: Optional[float] = None) -> None:
         """Adds new sequences with BLAST.
 
@@ -188,6 +188,11 @@ class ParentAlignment:
                 average identity between the first parent and other sequences.
                 Otherwise, 70% identity.
         """
+        if len(self.sequences) >= num_final_sequences:
+            raise ValueError(f'Requested {num_final_sequences} total sequences'
+                             f' but there are already {len(self.sequences)} '
+                             'sequences.')
+
         query_seq = self.sequences[0]
         candidate_seqs_iter = blast_query(query_seq)
 

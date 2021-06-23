@@ -188,6 +188,8 @@ def choose_candidates(candidate_sequences: list[SeqRecord.SeqRecord],
     # parent.
 
     cand_diffs = []
+    print('Number of candidates:', len(candidate_sequences))
+    print('Calculating pc_diff and sorted')
     for i, cand in enumerate(candidate_sequences):
         print(i, '\r', end='')
         max_diff = max(abs(desired_identity - _calc_identity(cand, x))
@@ -202,9 +204,14 @@ def choose_candidates(candidate_sequences: list[SeqRecord.SeqRecord],
     # Construct Tree and find the best set. In the worst case this might take
     # awhile.
     # TODO: Bound the time this requires?
+    print('Constructing tree.')
     tree = Tree(num_additional, desired_identity)
-    for cand, pc_diff in sorted_cand_diffs:
+    for i, (cand, pc_diff) in enumerate(sorted_cand_diffs):
+        print(i, '\r', end='')
+        if pc_diff > tree.best_diff:
+            break
         ret = tree.add_cand(cand, pc_diff)
         if ret == 'best found':
             break
+    print()
     return tree.best_leaf.cands

@@ -89,7 +89,6 @@ def test_from_single():
     in_sr = list(SeqIO.parse('bgl3_sample/bgl3_sequences.fasta', 'fasta'))[0]
     ParentAlignment.from_single(in_sr, num_final_sequences=6,
                                 desired_identity=0.65)
-
     in_string = str(in_sr.seq)
     in_name = in_sr.id
     pa = ParentAlignment.from_single(in_string, in_name)
@@ -157,7 +156,10 @@ def test_choose_candidates():
     pa_chosen = pa.sequences[3:]
     assert set(pa.id for pa in pa_chosen) in combo_sets
 
-    # Test 2: choose from BLAST query, 0.6 identity.
+    # Test 2: ask for too many seqs
+    pa.add_from_candidates([], 1)
+
+    # Test 3: choose from BLAST query, 0.6 identity.
     query_sr = pa.sequences[0]
     query_seq = str(query_sr.seq)
     cands = list(blast_query(query_seq))

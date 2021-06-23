@@ -192,9 +192,10 @@ class ParentAlignment:
 
         query_sr = self.sequences[0]
         query_seq = str(query_sr.seq)
-        candidate_seqs_iter = blast_query(query_seq)
+        candidate_seqs = list(blast_query(query_seq))
+        # blast_query gives iter but list should be small enough
 
-        self.add_from_candidates(candidate_seqs_iter, num_final_sequences,
+        self.add_from_candidates(candidate_seqs, num_final_sequences,
                                  desired_identity)
 
     def add_from_candidates(self,

@@ -76,14 +76,13 @@ class ParentAlignment:
     >>> candidate_seqs = list(SeqIO.parse('candidates.fasta', 'fasta'))
     >>> p_aln.add_from_candidates(candidate_sequences=candidate_seqs,
     ...                           num_final_sequences=6,
-    ...                           desired_identity: 0.65)
+    ...                           desired_identity=0.65)
 
     Or if you want to build a library from an amino acid sequence stored as a
     string instead:
     >>> from ggsr.parent_alignment import ParentAlignent
     >>> sequence = 'MKQHKAMIVALIVICITAVVAALVTRKDLCEVHIRTGQTEVAVF'
-    >>> p_aln = from_single(cls,
-    ...                     sequence=sequence,
+    >>> p_aln = from_single(sequence=sequence,
     ...                     name='YP_025292.1',
     ...                     num_final_sequences=6,
     ...                     desired_identity=0.65)
@@ -152,8 +151,8 @@ class ParentAlignment:
         Args:
             sequence: First parent sequence. Will be used to find additional
                 sequences and PDB structure.
-            name: Name of sequence. May be None if sequence is a SeqRecord;
-                must be specified if sequence is a string.
+            name: Name of sequence. Ignored if sequence is a SeqRecord; must be
+                specified if sequence is a string.
             num_final_sequences: Number of desired parent sequences. Returned
                 ParentAlignment instance should have len(sequences) equal this.
             **kwargs: Additional keyword args for __init__. For example, you
@@ -163,14 +162,9 @@ class ParentAlignment:
             if name is None:
                 raise ValueError('name parameter is required when sequence is '
                                  'a string.')
-            sequence = SeqRecord.SeqRecord(Seq.Seq(sequence), id=name)
-        elif isinstance(sequence, SeqRecord.SeqRecord):
-            if name is not None:
-                sequence.id = name
-        else:
-            raise TypeError('sequence parameter must be a String or '
-                            'Bio.SeqRecord.SeqRecord.')
-        pa = cls(sequence, **kwargs)
+            sequence = SeqRecord.SeqRecord(Seq.Seq(sequence), id=name,
+                                           name=name)
+        pa = cls([sequence], **kwargs)
         pa.obtain_seqs(num_final_sequences, desired_identity)
         return pa
 
@@ -192,6 +186,9 @@ class ParentAlignment:
             raise ValueError(f'Requested {num_final_sequences} total sequences'
                              f' but there are already {len(self.sequences)} '
                              'sequences.')
+
+        # This results in two calls, but we want to validate before BLAST.
+        desired_identity = self._check_identity(desired_identity)
 
         query_sr = self.sequences[0]
         query_seq = str(query_sr.seq)
@@ -225,46 +222,13 @@ class ParentAlignment:
         num_additional = num_final_sequences - num_preexisting_parents
         if num_additional <= 0:
             return
-        if desired_identity is None:
-            if num_preexisting_parents == 1:
-                desired_identity = 0.7
-            else:
-                # calculate average pairwise identity of parents
-                identities = [_calc_identity(sr1, sr2) for sr1, sr2
-                              in combinations(self.sequences, 2)]
-                desired_identity = sum(identities) / len(identities)
-        assert 0.0 < desired_identity < 1.0
+        if len(candidate_sequences) < num_additional:
+            raise ValueError('candidate_sequences is not larget enough to '
+                             f'add {num_additional} sequences.')
+        desired_identity = self._check_identity(desired_identity)
 
         best_cands = choose_candidates(candidate_sequences, self.sequences,
                                        num_additional, desired_identity)
-
-        # TODO: remove this
-        # naive way, probably a good test?
-        '''
-        from itertools import combinations
-        cands = sorted_cand_diffs[:20]
-        best_diff = 1.0
-        best_set = None
-        print(1140)
-        for k, srs in enumerate(combinations(cands, 3)):
-            print(k, '\r', end='')
-            # max_diff = 0.0
-            max_diff = max([sr[1] for sr in srs])
-            for i, (sr, sra) in enumerate(srs):
-                # for p in self.sequences:
-                #     diff = abs(_calc_identity(sr, p) - 0.7)
-                #     if diff > max_diff:
-                #         max_diff = diff
-                for sr2, _ in srs[i+1:]:
-                    diff = abs(_calc_identity(sr, sr2) - 0.7)
-                    if diff > max_diff:
-                        max_diff = diff
-            if max_diff < best_diff:
-                best_diff = max_diff
-                best_set = srs
-        print([bs[0].id for bs in best_set])
-        '''
-
         self.sequences += best_cands
 
     def align(self) -> None:
@@ -346,30 +310,19 @@ class ParentAlignment:
         new_instance.auto_align = in_dict['auto_align']
         return new_instance
 
-
-if __name__ == '__main__':
-    aln = ParentAlignment.from_fasta('../../tests/bgl3_sample/bgl3_p1-2.fasta',
-                                     auto_align=True)
-    aln_json = aln.to_json()
-    aln2 = ParentAlignment.from_json(aln_json)
-    print(aln)
-    print(aln2)
-
-    # cands = list(SeqIO.parse('../../tests/bgl3_sample/bgl3_p3-6.fasta',
-    #                          'fasta'))
-    # aln.add_from_candidates(cands, 4)
-    # aln.align()
-    '''
-    import blast_query
-    qs = list(SeqIO.parse('../../tests/bgl3_sample/bgl3_p1-2.fasta',
-                          'fasta'))[0].seq
-    candidate_srs = blast_query.blast_query(qs)
-    print('writing')
-    SeqIO.write(candidate_srs, '../../tests/bgl3_sample/query_seqs2.fasta',
-                'fasta')
-    '''
-    '''
-    cands = list(SeqIO.parse('../../tests/bgl3_sample/query_seqs.fasta',
-                             'fasta'))
-    aln.add_from_candidates(cands, 5, 0.7)
-    '''
+    def _check_identity(self, desired_identity: float) -> float:
+        """Validate the input desired_identity, set to default if None."""
+        if desired_identity is None:
+            # Follow default behavior: 0.7 if there's only one sequence.
+            # Average cross-wise identity of the sequences otherwise.
+            if len(self.sequences) == 1:
+                desired_identity = 0.7
+            else:
+                # calculate average pairwise identity of parents
+                identities = [_calc_identity(sr1, sr2) for sr1, sr2
+                              in combinations(self.sequences, 2)]
+                desired_identity = sum(identities) / len(identities)
+        if not 0.0 < desired_identity < 1.0:
+            raise ValueError('desired_identity must be between 0.0 and 1.0, '
+                             'exclusive.')
+        return desired_identity

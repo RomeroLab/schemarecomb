@@ -59,7 +59,7 @@ class TreeNode:
         if self.cands:
             # Calculate the identity diff between the new candidate and each
             # candidate in self.cands.
-            new_cc_diff = max(abs(0.7 - _calc_identity(cand, x))
+            new_cc_diff = max(abs(target_identity - _calc_identity(cand, x))
                               for x in self.cands)
             # Choose maximum between old cc_diff and new_cc_diff.
             new_cc_diff = max(self.max_cc_diff, new_cc_diff)
@@ -193,6 +193,7 @@ def choose_candidates(candidate_sequences: list[SeqRecord.SeqRecord],
         max_diff = max(abs(desired_identity - _calc_identity(cand, x))
                        for x in existing_parents)
         cand_diffs.append((cand, max_diff))
+    print()
 
     # Sort candidates by difference to enable short-circuiting. sorted is fast
     # enough, but this could be faster with heapq.

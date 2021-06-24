@@ -54,10 +54,11 @@ Available classes:
     Atom: Atom within a certain residue in PDB structure.
 """
 
-from collections.abs import Iterable
+from collections.abc import Iterable
 from dataclasses import dataclass
 from itertools import product
 from typing import Union
+from urllib.request import urlopen
 
 from Bio import SeqIO, SeqRecord
 
@@ -222,43 +223,60 @@ class AminoAcid:
         return min(a1.d(a2) for a1, a2 in product(self.atoms, res.atoms))
 
 
+@dataclass
 class PDBStructure:
     """Protein crytal structure from PDB."""
-    # TODO: File this class out further.
-    def __init__(self):
-        pass
+    amino_acids: list[AminoAcid]
 
     @classmethod
-    def from_sr_list(cls, fn: str, in_sr):
-        pdb_srs = list(SeqIO.parse(fn, 'fasta'))
-        chosen_sr = max(pdb_srs, key=lambda x: _calc_identity(in_sr, x))
-        print(chosen_sr)
+    def from_parents(cls, parent_seqs: list[SeqRecord.SeqRecord]):
+        query_str = str(parent_seqs[0].seq)
+        pdb_srs = list(blast_query(query_str, 'pdbaa'))
+
+        # find best PDB struct
+        best_id = None  # track the best sequence
+        best_min_iden = 0.0  # minimum parental identity of best sequence
+        for pdb_s in pdb_srs:
+            min_iden = 1.0  # minimum parental identity of current sequence
+            is_minimum = True  # whether the current sequence is the best
+            for par_s in parent_seqs:
+                iden = _calc_identity(pdb_s, par_s)
+                if iden < best_min_iden:  # sequence suboptimal, short-circuit
+                    is_minimum = False
+                    break
+                min_iden = min(min_iden, iden)
+            if is_minimum:  # never set false, must be optimal so far
+                best_id = pdb_s.id
+                best_min_iden = min_iden
+
+        if best_id is None:
+            raise ValueError('No best PDB found.')
+
+        acc = best_id.split('|')[1]
+        url = 'https://files.rcsb.org/view/' + acc + '.pdb'
+
+        with urlopen(url) as f:
+            ret = cls.from_pdb_file(f)
+
+        # TODO: renumber to parents (probably change parent_seqs to aln?)
+
+        return ret
 
     @classmethod
-    def from_query_sr(cls, in_sr: SeqRecord.SeqRecord):
-        seq_str = str(in_sr.seq)
-        pdb_srs = list(blast_query(seq_str, 'pdbaa'))
-        fn = 'temp.fasta'
-        SeqIO.write(pdb_srs, fn, 'fasta')
-        cls.from_sr_list(fn, in_sr)
-
-    @classmethod
-    def from_pdb_file(cls, fn):
+    def from_pdb_file(cls, f):
         amino_acids = []
-        with open(fn) as f:
-            curr_atoms = []
-            for line in f:
-                if line[:4] != 'ATOM':
-                    continue
-                atom = Atom.from_line(line)
-                if curr_atoms \
-                   and curr_atoms[0].res_seq_num != atom.res_seq_num:
-                    aa = AminoAcid.from_atoms(curr_atoms)
-                    amino_acids.append(aa)
-                    curr_atoms = [atom]
-                else:
-                    curr_atoms.append(atom)
-        return amino_acids
+        curr_atoms = []
+        for line in f:
+            if line[:4] != b'ATOM':
+                continue
+            atom = Atom.from_line(line.decode())
+            if curr_atoms and curr_atoms[0].res_seq_num != atom.res_seq_num:
+                aa = AminoAcid.from_atoms(curr_atoms)
+                amino_acids.append(aa)
+                curr_atoms = [atom]
+            else:
+                curr_atoms.append(atom)
+        return cls(amino_acids)
 
 
 if __name__ == '__main__':
@@ -266,6 +284,17 @@ if __name__ == '__main__':
     #                       'fasta'))[0]
     # pdb = PDBStructure.from_query_sr(sr)
     # pdb = PDBStructure.from_sr_list('temp.fasta', sr)
-    amino_acids = PDBStructure.from_pdb_file('1gnx.pdb')
-    print(len(amino_acids))
-    print(amino_acids[0].to_lines())
+    # pdb_seqs = list(SeqIO.parse('temp.fasta', 'fasta'))
+    parental_seqs = list(SeqIO.parse(
+        '../../tests/bgl3_sample/bgl3_sequences.fasta', 'fasta'))
+    '''
+    best_seq = choose_pdb_seq(pdb_seqs, parental_seqs)
+    acc = best_seq.id.split('|')[1]
+    f = get_pdb(acc)
+    print(f.readline())
+    aas = PDBStructure.from_pdb_str(f)
+    for a in aas[:3]:
+        print(a)
+    '''
+    a = PDBStructure.from_parents(parental_seqs)
+    print(a.amino_acids[:3])

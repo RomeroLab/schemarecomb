@@ -57,13 +57,20 @@ Available classes:
 from collections.abc import Iterable
 from dataclasses import dataclass
 from itertools import product
+from io import BufferedIOBase, TextIOBase
 from typing import Union
 from urllib.request import urlopen
 
-from Bio import SeqIO, SeqRecord
+from Bio import pairwise2, SeqIO, SeqRecord
+from Bio.SeqUtils import IUPACData
 
-from blast_query import blast_query
-from utils import _calc_identity
+from .blast_query import blast_query
+from .utils import _calc_identity
+
+
+def _three_upper_to_one(res):
+    three_letters = res[0] + res[1:].lower()
+    return IUPACData.protein_letters_3to1[three_letters]
 
 
 @dataclass
@@ -222,18 +229,63 @@ class AminoAcid:
         """Distance between closest atoms of this and another residue."""
         return min(a1.d(a2) for a1, a2 in product(self.atoms, res.atoms))
 
+    def renumber(self, new_num):
+        self.res_seq_num = new_num
+        for a in self.atoms:
+            a.res_seq_num = new_num
+
 
 @dataclass
 class PDBStructure:
-    """Protein crytal structure from PDB."""
+    """Protein crytal structure from PDB.
+
+    Container for list of amino acids.
+
+    Public attributes:
+        amino_acids: Resides in PDB structure.
+
+    Constructors:
+        from_parents: Initialize from aligned sequences.
+        from_pdb_file: Build directly from PDB file.
+
+    Future: This constructor's BLAST search and filter are effectively
+        pointless. This constructor should probably be broken into a few
+        separate constructors:
+            - Input aligned PDB sequence.
+            - Input PDB accession and align to parent_alignment?
+            - Input parent sequences and find if any parents are PDB/closest.
+            - Basically this constructor but handle PDB differences.
+            - Add renumbering as a post-initialization option to enable manual
+                construction of structures.
+    """
     amino_acids: list[AminoAcid]
 
     @classmethod
-    def from_parents(cls, parent_seqs: list[SeqRecord.SeqRecord]):
-        query_str = str(parent_seqs[0].seq)
-        pdb_srs = list(blast_query(query_str, 'pdbaa'))
+    def from_parents(cls, parent_seqs: list[SeqRecord.SeqRecord],
+                     p1_aligned: SeqRecord.SeqRecord) -> 'PDBStructure':
+        """Construct from aligned sequences using BLAST and PDB.
 
-        # find best PDB struct
+        The best structure is found by using BLAST to download candidate PDB
+        sequences, then the sequence with the largest minimum identity to the
+        parents is selected. This sequence is aligned with the first parent to
+        renumber the PDB residues to parent alignment.
+
+        Note that the current implementation doesn't renumber PDB residues that
+        aren't found in the first parent. This effectively means that the first
+        parent should always be selected from the PDB database.
+
+        Args:
+            parent_seqs: Unaligned sequences from the parent alignment. Note
+                that parent_seqs[0] is special: it is used to query BLAST and
+                align the chosen PDB to the sequence.
+            p1_aligned: parent_seqs[0] aligned to the other parents.
+        """
+        query_str = str(parent_seqs[0].seq)
+        if query_str != str(p1_aligned.seq).replace('-', ''):
+            raise ValueError('parent_seqs[0] does not match p1_aligned.')
+        pdb_srs = list(blast_query(query_str, 'pdbaa', 100))
+
+        # Find the PDB struct with largest minimum identity to the parents.
         best_id = None  # track the best sequence
         best_min_iden = 0.0  # minimum parental identity of best sequence
         for pdb_s in pdb_srs:
@@ -252,24 +304,49 @@ class PDBStructure:
         if best_id is None:
             raise ValueError('No best PDB found.')
 
+        # Get the pdb_structure from rcsb.
         acc = best_id.split('|')[1]
         url = 'https://files.rcsb.org/view/' + acc + '.pdb'
-
         with urlopen(url) as f:
-            ret = cls.from_pdb_file(f)
+            pdb_structure = cls.from_pdb_file(f)
 
-        # TODO: renumber to parents (probably change parent_seqs to aln?)
+        # Renumber pdb structure to match parental alignment.
+        pdb_atom_list = [aa.res_name for aa in pdb_structure.amino_acids]
+        pdb_atom_seq = ''.join([_three_upper_to_one(x) for x in pdb_atom_list])
+        aln = pairwise2.align.globalxx(p1_aligned, pdb_atom_seq, gap_char='.',
+                                       one_alignment_only=True)[0]
+        pdb_iter = iter(pdb_structure.amino_acids)
+        par_index = 1  # Start from 1 to match PDB standard.
+        for par_aa, pdb_aa in zip(aln.seqA, aln.seqB):
+            if pdb_aa != '.':
+                next(pdb_iter).renumber(par_index)
+            if par_aa == '.':
+                # TODO: handle this more formally?
+                print('warning: residue in pdb but not par')
+            else:
+                par_index += 1
 
-        return ret
+        return pdb_structure
 
     @classmethod
-    def from_pdb_file(cls, f):
+    def from_pdb_file(cls, f: Union[TextIOBase, BufferedIOBase],
+                      chain: str = 'A'):
+        """Construct from PDB file without renumbering.
+
+        Args:
+            f: file-like PDB structure.
+            chain: Chain to include in constructed object.
+        """
         amino_acids = []
         curr_atoms = []
         for line in f:
-            if line[:4] != b'ATOM':
+            if line[:4] not in (b'ATOM', 'ATOM'):
                 continue
-            atom = Atom.from_line(line.decode())
+            if isinstance(line, bytes):
+                line = line.decode()
+            atom = Atom.from_line(line)
+            if atom.chain != chain:
+                continue
             if curr_atoms and curr_atoms[0].res_seq_num != atom.res_seq_num:
                 aa = AminoAcid.from_atoms(curr_atoms)
                 amino_acids.append(aa)
@@ -279,22 +356,14 @@ class PDBStructure:
         return cls(amino_acids)
 
 
-if __name__ == '__main__':
-    # sr = list(SeqIO.parse('../../tests/bgl3_sample/bgl3_sequences.fasta',
-    #                       'fasta'))[0]
-    # pdb = PDBStructure.from_query_sr(sr)
-    # pdb = PDBStructure.from_sr_list('temp.fasta', sr)
-    # pdb_seqs = list(SeqIO.parse('temp.fasta', 'fasta'))
+def f():
     parental_seqs = list(SeqIO.parse(
-        '../../tests/bgl3_sample/bgl3_sequences.fasta', 'fasta'))
-    '''
-    best_seq = choose_pdb_seq(pdb_seqs, parental_seqs)
-    acc = best_seq.id.split('|')[1]
-    f = get_pdb(acc)
-    print(f.readline())
-    aas = PDBStructure.from_pdb_str(f)
-    for a in aas[:3]:
-        print(a)
-    '''
-    a = PDBStructure.from_parents(parental_seqs)
-    print(a.amino_acids[:3])
+        '../tests/bgl3_sample/bgl3_sequences.fasta', 'fasta'))
+
+    from parent_alignment import ParentAlignment
+    p_aln = ParentAlignment(parental_seqs)
+    p1_aligned = str(p_aln.aligned_sequences[0].seq)
+
+    pdb = PDBStructure.from_parents(parental_seqs, p1_aligned)
+    for aa in pdb.amino_acids:
+        print(aa)

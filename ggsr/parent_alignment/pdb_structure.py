@@ -56,7 +56,8 @@ Available classes:
 
 from collections.abc import Iterable
 from dataclasses import dataclass
-from itertools import product
+from functools import cached_property
+from itertools import combinations, product
 from io import BufferedIOBase, TextIOBase
 from typing import Union
 from urllib.request import urlopen
@@ -66,11 +67,6 @@ from Bio.SeqUtils import IUPACData
 
 from .blast_query import blast_query
 from .utils import _calc_identity
-
-
-def _three_upper_to_one(res):
-    three_letters = res[0] + res[1:].lower()
-    return IUPACData.protein_letters_3to1[three_letters]
 
 
 @dataclass
@@ -191,6 +187,7 @@ class AminoAcid:
         atoms: The residue's atoms.
         res_name: Name of the residue.
         res_seq_num: Number of the residue within the structure.
+        letter: res_name converted to one letter for convenience.
 
     Public methods:
         to_lines: Convert to section of PDB ATOM lines.
@@ -203,6 +200,7 @@ class AminoAcid:
     atoms: list[Atom]
     res_name: str
     res_seq_num: int
+    letter: str
 
     @classmethod
     def from_lines(cls, lines: Union[str, Iterable[str]]) -> 'AminoAcid':
@@ -219,7 +217,9 @@ class AminoAcid:
         assert all(a.res_name == res_name for a in atoms)
         res_seq_num = atoms[0].res_seq_num
         assert all(a.res_seq_num == res_seq_num for a in atoms)
-        return cls(atoms, res_name, res_seq_num)
+        three_letters = res_name[0] + res_name[1:].lower()
+        letter = IUPACData.protein_letters_3to1[three_letters]
+        return cls(atoms, res_name, res_seq_num, letter)
 
     def to_lines(self) -> str:
         """Convert to section of PDB ATOM lines."""
@@ -259,6 +259,20 @@ class PDBStructure:
                 construction of structures.
     """
     amino_acids: list[AminoAcid]
+
+    @cached_property
+    def contacts(self):
+        """Lazy evaluation of contacts.
+
+        TODO: Refactor this to be easier to use in SCHEMA-RASPP. Options:
+            - Leave as is.
+            - Change to pre-computed rather than lazy.
+            - Change to lazy on per-AA basis.
+            - Add PDBStructure method with two AA input (dict?).
+            - Add contacting residues to AminoAcid object.
+        """
+        aa_combos = combinations(self.amino_acids, 2)
+        return [(aa1, aa2) for aa1, aa2 in aa_combos if aa1.d(aa2) < 4.5]
 
     @classmethod
     def from_parents(cls,
@@ -311,12 +325,13 @@ class PDBStructure:
         # Get the pdb_structure from rcsb.
         acc = best_id.split('|')[1]
         url = 'https://files.rcsb.org/view/' + acc + '.pdb'
-        with urlopen(url) as f:
+        from urllib.request import Request
+        request = Request(url)
+        with urlopen(request) as f:
             pdb_structure = cls.from_pdb_file(f)
 
         # Renumber pdb structure to match parental alignment.
-        pdb_atom_list = [aa.res_name for aa in pdb_structure.amino_acids]
-        pdb_atom_seq = ''.join([_three_upper_to_one(x) for x in pdb_atom_list])
+        pdb_atom_seq = ''.join([aa.letter for aa in pdb_structure.amino_acids])
         aln = pairwise2.align.globalxx(p1_aligned, pdb_atom_seq, gap_char='.',
                                        one_alignment_only=True)[0]
         pdb_iter = iter(pdb_structure.amino_acids)

@@ -4,39 +4,59 @@ from Bio import SeqIO
 import pytest
 
 from ggsr import parent_alignment
+from ggsr.parent_alignment import pdb_structure
 from ggsr.parent_alignment.blast_query import blast_query
 from ggsr.parent_alignment.utils import iden_diff
 
 
 def mock_urlopen(request):
+    print('Hackerman: "We\'re in."')
+
     url = request._full_url
-    data = dict(x.split('=') for x in request._data.decode().split('&'))
+    if request.data is not None:
+        data = dict(x.split('=') for x in request._data.decode().split('&'))
     if url == 'https://blast.ncbi.nlm.nih.gov/Blast.cgi':
-        # initial BLAST query
-        if all([data.get('DATABASE', None) == 'refseq_protein',
-                data['CMD'] == 'Put']):
-            return open('bgl3_sample/blast_put_20210622.txt', 'rb')
+        if data['CMD'] == 'Put':
+            # Initiate PDB query.
+            if data['DATABASE'] == 'refseq_protein':
+                return open('bgl3_sample/blast_put_20210622.txt', 'rb')
+            elif data['DATABASE'] == 'pdbaa':
+                return open('bgl3_sample/blast_put_pdb_20210628.txt', 'rb')
+            raise ValueError('Handling for this request is not implemented.')
 
-        # check if complete, return completion right away (not true behavior)
-        elif data['CMD'] == 'Get' and 'RESULTS_FILE' not in data:
-            return open('bgl3_sample/blast_status-20_20210622.txt', 'rb')
+        print(data['RID'])
+        RID_suffix_map = {'DM1VZA9Z013': 'pdb_20210628',
+                          'D4D32H8K013': '20210622'}
+        suffix = RID_suffix_map[data['RID']]
 
-        # get accession numbers from BLAST request
+        # Check if complete. When mocked, return complete status right away.
+        if data['CMD'] == 'Get' and 'RESULTS_FILE' not in data:
+            return open(f'bgl3_sample/blast_status_{suffix}.txt', 'rb')
+
+        # Get accession numbers from BLAST request.
         elif data['CMD'] == 'Get' and 'RESULTS_FILE' in data:
-            return open('bgl3_sample/blast_get_20210622.txt', 'rb')
+            return open(f'bgl3_sample/get_names_{suffix}.txt', 'rb')
+
+    elif url == 'https://files.rcsb.org/view/1GNX.pdb':
+        return open('bgl3_sample/1GNX.pdb', 'rb')
 
     raise ValueError('Handling for this request is not implemented.')
 
 
 def mock_efetch(db, id, rettype):
-    if db == 'protein' and rettype == 'fasta':  # id is way too long
-        return open('bgl3_sample/fasta_str_20210622.txt')
+    seqid_suffix = {'1GNX_A': 'pdb_20210628', 'WP_210920601.1': '20210622'}
+    suffix = seqid_suffix[id.split(',')[0]]
+    if db == 'protein' and rettype == 'fasta':  # seq_ids is way too long
+        return open(f'bgl3_sample/fasta_str_{suffix}.txt')
     raise ValueError('Handling for this request is not implemented.')
 
 
 ParentAlignment = parent_alignment.ParentAlignment
+PDBStructure = pdb_structure.PDBStructure
 parent_alignment.blast_query.urlopen = mock_urlopen
 parent_alignment.blast_query.Entrez.efetch = mock_efetch
+pdb_structure.urlopen = mock_urlopen
+pdb_structure.blast_query.urlopen = mock_urlopen
 
 
 def check_aligned_sequences(pa, intended_sequences_len):
@@ -176,3 +196,22 @@ def test_choose_candidates():
     pa_chosen = pa.sequences[num_final:]  # num_final left over from Test 1
 
     assert set(pa.id for pa in pa_chosen) in combo_sets
+
+
+def test_pdb_structure():
+    parental_seqs = list(SeqIO.parse(
+        'bgl3_sample/bgl3_sequences.fasta', 'fasta'))
+
+    # Make auto-aligned ParentAlignment and extract needed sequences.
+    p_aln = ParentAlignment(parental_seqs)
+    p_seqs = p_aln.sequences
+    p1_aligned = str(p_aln.aligned_sequences[0].seq)
+
+    pdb = PDBStructure.from_parents(p_seqs, p1_aligned)
+    assert pdb.amino_acids  # make sure it's not empty
+
+    # Check that p_aln and pdb numbering lines up.
+    for aa in pdb.amino_acids:
+        assert aa.letter == p_aln.aligned_sequences[0].seq[aa.res_seq_num-1]
+
+    assert pdb.contacts  # TODO: Check this against a reference.

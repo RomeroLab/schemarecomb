@@ -261,8 +261,10 @@ class PDBStructure:
     amino_acids: list[AminoAcid]
 
     @classmethod
-    def from_parents(cls, parent_seqs: list[SeqRecord.SeqRecord],
-                     p1_aligned: SeqRecord.SeqRecord) -> 'PDBStructure':
+    def from_parents(cls,
+                     parent_seqs: list[SeqRecord.SeqRecord],
+                     p1_aligned: Union[str, SeqRecord.SeqRecord]
+                     ) -> 'PDBStructure':
         """Construct from aligned sequences using BLAST and PDB.
 
         The best structure is found by using BLAST to download candidate PDB
@@ -281,7 +283,9 @@ class PDBStructure:
             p1_aligned: parent_seqs[0] aligned to the other parents.
         """
         query_str = str(parent_seqs[0].seq)
-        if query_str != str(p1_aligned.seq).replace('-', ''):
+        if isinstance(p1_aligned, SeqRecord.SeqRecord):
+            p1_aligned = str(p1_aligned.seq)
+        if query_str != p1_aligned.replace('-', ''):
             raise ValueError('parent_seqs[0] does not match p1_aligned.')
         pdb_srs = list(blast_query(query_str, 'pdbaa', 100))
 

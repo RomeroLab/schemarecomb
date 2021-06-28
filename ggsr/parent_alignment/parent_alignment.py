@@ -131,10 +131,9 @@ class ParentAlignment:
                 self.aligned_sequences = None
                 if self.pdb_structure is not None:
                     self.pdb_structure.is_renumbered = False
-        elif name == 'pdb_structure':
+        elif name == 'pdb_structure' and value is not None and self.auto_align:
             # Want to renumber pdb if aligned.
-            if self.auto_align:
-                self.pdb_structure.renumber(self.aligned_sequences[0])
+            self.pdb_structure.renumber(self.aligned_sequences[0])
 
     @classmethod
     def from_fasta(cls, fasta_fn: str, **kwargs) -> 'ParentAlignment':

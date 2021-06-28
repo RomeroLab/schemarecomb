@@ -280,7 +280,6 @@ class PDBStructure:
     def from_parents(cls,
                      parent_seqs: list[SeqRecord.SeqRecord],
                      p1_aligned: Union[str, SeqRecord.SeqRecord],
-                     do_renumbering: bool = False
                      ) -> 'PDBStructure':
         """Construct from aligned sequences using BLAST and PDB.
 
@@ -333,8 +332,7 @@ class PDBStructure:
         with urlopen(request) as f:
             pdb_structure = cls.from_pdb_file(f)
 
-        if do_renumbering:
-            pdb_structure.renumber()
+        pdb_structure.renumber(p1_aligned)
 
         return pdb_structure
 

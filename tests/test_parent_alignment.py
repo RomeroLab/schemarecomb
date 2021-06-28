@@ -10,8 +10,6 @@ from ggsr.parent_alignment.utils import iden_diff
 
 
 def mock_urlopen(request):
-    print('Hackerman: "We\'re in."')
-
     url = request._full_url
     if request.data is not None:
         data = dict(x.split('=') for x in request._data.decode().split('&'))
@@ -24,7 +22,6 @@ def mock_urlopen(request):
                 return open('bgl3_sample/blast_put_pdb_20210628.txt', 'rb')
             raise ValueError('Handling for this request is not implemented.')
 
-        print(data['RID'])
         RID_suffix_map = {'DM1VZA9Z013': 'pdb_20210628',
                           'D4D32H8K013': '20210622'}
         suffix = RID_suffix_map[data['RID']]
@@ -209,6 +206,7 @@ def test_pdb_structure():
 
     pdb = PDBStructure.from_parents(p_seqs, p1_aligned)
     assert pdb.amino_acids  # make sure it's not empty
+    assert pdb.is_renumbered
 
     # Check that p_aln and pdb numbering lines up.
     for aa in pdb.amino_acids:

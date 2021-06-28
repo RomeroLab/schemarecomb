@@ -62,7 +62,7 @@ from io import BufferedIOBase, TextIOBase
 from typing import Union
 from urllib.request import urlopen
 
-from Bio import pairwise2, SeqIO, SeqRecord
+from Bio import pairwise2, SeqRecord
 from Bio.SeqUtils import IUPACData
 
 from .blast_query import blast_query
@@ -243,6 +243,7 @@ class PDBStructure:
 
     Public attributes:
         amino_acids: Resides in PDB structure.
+        renumbered: Whether the structure has be renumbered to an alignment.
 
     Constructors:
         from_parents: Initialize from aligned sequences.
@@ -259,6 +260,7 @@ class PDBStructure:
                 construction of structures.
     """
     amino_acids: list[AminoAcid]
+    is_renumbered: bool = False
 
     @cached_property
     def contacts(self):
@@ -277,7 +279,8 @@ class PDBStructure:
     @classmethod
     def from_parents(cls,
                      parent_seqs: list[SeqRecord.SeqRecord],
-                     p1_aligned: Union[str, SeqRecord.SeqRecord]
+                     p1_aligned: Union[str, SeqRecord.SeqRecord],
+                     do_renumbering: bool = False
                      ) -> 'PDBStructure':
         """Construct from aligned sequences using BLAST and PDB.
 
@@ -330,20 +333,8 @@ class PDBStructure:
         with urlopen(request) as f:
             pdb_structure = cls.from_pdb_file(f)
 
-        # Renumber pdb structure to match parental alignment.
-        pdb_atom_seq = ''.join([aa.letter for aa in pdb_structure.amino_acids])
-        aln = pairwise2.align.globalxx(p1_aligned, pdb_atom_seq, gap_char='.',
-                                       one_alignment_only=True)[0]
-        pdb_iter = iter(pdb_structure.amino_acids)
-        par_index = 1  # Start from 1 to match PDB standard.
-        for par_aa, pdb_aa in zip(aln.seqA, aln.seqB):
-            if pdb_aa != '.':
-                next(pdb_iter).renumber(par_index)
-            if par_aa == '.':
-                # TODO: handle this more formally?
-                print('warning: residue in pdb but not par')
-            else:
-                par_index += 1
+        if do_renumbering:
+            pdb_structure.renumber()
 
         return pdb_structure
 
@@ -374,15 +365,20 @@ class PDBStructure:
                 curr_atoms.append(atom)
         return cls(amino_acids)
 
+    def renumber(self, p1_aligned):
+        # Renumber pdb structure to match parental alignment.
+        pdb_atom_seq = ''.join([aa.letter for aa in self.amino_acids])
+        aln = pairwise2.align.globalxx(p1_aligned, pdb_atom_seq, gap_char='.',
+                                       one_alignment_only=True)[0]
+        pdb_iter = iter(self.amino_acids)
+        par_index = 1  # Start from 1 to match PDB standard.
+        for par_aa, pdb_aa in zip(aln.seqA, aln.seqB):
+            if pdb_aa != '.':
+                next(pdb_iter).renumber(par_index)
+            if par_aa == '.':
+                # TODO: handle this more formally?
+                print('warning: residue in pdb but not par')
+            else:
+                par_index += 1
 
-def f():
-    parental_seqs = list(SeqIO.parse(
-        '../tests/bgl3_sample/bgl3_sequences.fasta', 'fasta'))
-
-    from parent_alignment import ParentAlignment
-    p_aln = ParentAlignment(parental_seqs)
-    p1_aligned = str(p_aln.aligned_sequences[0].seq)
-
-    pdb = PDBStructure.from_parents(parental_seqs, p1_aligned)
-    for aa in pdb.amino_acids:
-        print(aa)
+        self.is_renumbered = True

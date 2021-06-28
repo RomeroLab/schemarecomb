@@ -23,6 +23,7 @@ from Bio import Seq, SeqIO, SeqRecord
 
 from .blast_query import blast_query
 from .choose_candidates import choose_candidates
+from .pdb_structure import PDBStructure
 from .utils import _calc_identity
 
 
@@ -100,7 +101,8 @@ class ParentAlignment:
     """
 
     def __init__(self, sequences: list[SeqRecord.SeqRecord],
-                 auto_align: bool = True) -> None:
+                 auto_align: bool = True,
+                 pdb_structure: PDBStructure = None) -> None:
         """Initalize ParentAlignment.
 
         Args:
@@ -114,18 +116,25 @@ class ParentAlignment:
             raise ValueError('sequences must not be empty.')
         self.auto_align = auto_align
         self.aligned_sequences = None  # not needed here, included for clarity
-        self.sequences = sequences  # must be set last since it affects others
+        self.pdb_structure = pdb_structure
+        self.sequences = sequences  # must be set here since it affects others
 
     def __setattr__(self, name, value) -> None:
         """Set aligned_sequences according to auto_align if sequences reset."""
         super().__setattr__(name, value)
 
-        # If sequences is changed, want to modify aligned_sequences.
         if name == 'sequences':
+            # If sequences is changed, want to modify aligned_sequences.
             if self.auto_align:
                 self.align()
             else:
                 self.aligned_sequences = None
+                if self.pdb_structure is not None:
+                    self.pdb_structure.is_renumbered = False
+        elif name == 'pdb_structure':
+            # Want to renumber pdb if aligned.
+            if self.auto_align:
+                self.pdb_structure.renumber(self.aligned_sequences[0])
 
     @classmethod
     def from_fasta(cls, fasta_fn: str, **kwargs) -> 'ParentAlignment':
@@ -258,6 +267,10 @@ class ParentAlignment:
 
         print('Muscle done, cleaning up files')
         os.remove(OUT_FN)
+
+        # Renumber pdb_structure if available.
+        if self.pdb_structure is not None:
+            self.pdb_structure.renumber(self.aligned_sequences[0])
 
     def to_json(self) -> str:
         """Convert instance to JSON."""

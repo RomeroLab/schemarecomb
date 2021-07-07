@@ -12,18 +12,18 @@ discarded except for ATOM lines, which specify data about atoms within the
 structure.
 
 The most confusing part about PDB structure manipulation is the renumbering of
-atoms to match SCHEMA-RASPP parent alignment. The main goal of this module is
-to relieve user confusion about this process. Note that all atom/residue
-numbering in this module is indexed starting from 1 in order to match the PDB
-format. Since Python is indexed starting from 0, you must be cognizant of how
-this affects indexing vs labeling. For example, the N in ALA below will have
-serial number 1, but will be ala15.atoms[0] if "ala15" is the AminoAcid
-instance representing the ALA at position 15 in the structure. Similarly, the
-"15" in "ala15" states that this residue is the 15th element in the structure.
-However, if pdb_seq was the Python String representing the amino acid sequence
-of the structure below, this residue would be pdb_seq[14].
+atoms to match SCHEMA-RASPP parent alignment. Relieving user confusion about
+this process is a primary goal of this module. Note that atom/residue indexing
+in PDB files begins at 1, while Python's indexing starts at 0. For consistency
+with the rest of the module, these classes index the residue number starting
+from 0. As a result, PDB file reading and writing PDB must convert between
+indexing. For example, the "ALA" lines in the pdb file below indicate that the
+15th amino acid in the structure is alanine. When read with this module, this
+alanine will be labeled with a res_seq_num of 14. This is consistent with
+sequence number: if pdb_seq is the Python String representing the amino acid
+sequence of the structure , this residue would be pdb_seq[14].
 
-PDB files generally have this structure (example structure is 1GNX):
+PDB files generally have this structure (example structure 1GNX):
 ...<other structure data>...
 ATOM      1  N   ALA A  15      -1.611  17.176  10.792  1.00 36.46           N
 ATOM      2  CA  ALA A  15      -1.871  18.610  11.107  1.00 36.85           C
@@ -133,7 +133,7 @@ class Atom:
         alt_loc = line[16]
         res_name = line[17:20].strip()
         chain = line[21]
-        res_seq_num = int(line[22:26].strip())
+        res_seq_num = int(line[22:26].strip()) - 1  # switch to 0 indexing
         insertion_code = line[26]
         x = float(line[30:38].strip())
         y = float(line[38:46].strip())
@@ -158,7 +158,7 @@ class Atom:
         line[16] = self.alt_loc
         line[17:20] = self.res_name.rjust(3)
         line[21] = self.chain
-        line[22:26] = str(self.res_seq_num).rjust(4)
+        line[22:26] = str(self.res_seq_num+1).rjust(4)  # switch to 1 indexing
         line[26] = self.insertion_code
         line[30:38] = f'{self.x:.3f}'.rjust(8)
         line[38:46] = f'{self.y:.3f}'.rjust(8)
@@ -190,10 +190,12 @@ class AminoAcid:
         res_name: Name of the residue.
         res_seq_num: Number of the residue within the structure.
         letter: res_name converted to one letter for convenience.
+        coords: x, y, and z coordinates of each atom.
 
     Public methods:
         to_lines: Convert to section of PDB ATOM lines.
         d: Distance between closent atoms of this and another residue.
+        renumber: Change the res_seq_num of the amino acid and its atoms.
 
     Constructors:
         from_lines: From ATOM lines in a PDB files.
@@ -203,6 +205,11 @@ class AminoAcid:
     res_name: str
     res_seq_num: int
     letter: str
+
+    @property
+    def coords(self) -> np.ndarray:  # shape (# atoms, 3)
+        """x, y, and z coordinates in a numpy array."""
+        return np.asarray([(a.x, a.y, a.z) for a in self.atoms])
 
     @classmethod
     def from_lines(cls, lines: Union[str, Iterable[str]]) -> 'AminoAcid':
@@ -231,7 +238,8 @@ class AminoAcid:
         """Distance between closest atoms of this and another residue."""
         return min(a1.d(a2) for a1, a2 in product(self.atoms, res.atoms))
 
-    def renumber(self, new_num):
+    def renumber(self, new_num: int) -> None:
+        """Change the res_seq_num of the amino acid and its atoms."""
         self.res_seq_num = new_num
         for a in self.atoms:
             a.res_seq_num = new_num
@@ -246,6 +254,12 @@ class PDBStructure:
     Public attributes:
         amino_acids: Resides in PDB structure.
         renumbered: Whether the structure has be renumbered to an alignment.
+        seq: Amino acid sequence of structure.
+        aligned_seq: seq aligned to a ParentAlignment.
+        contacts: Indices of contacting residues. Used in SCHEMA energy.
+
+    Public methods:
+        renumber: Renumber pdb structure to match ParentAlignment.
 
     Constructors:
         from_parents: Initialize from aligned sequences.
@@ -265,16 +279,18 @@ class PDBStructure:
     is_renumbered: bool = False
 
     @property
-    def seq(self):
+    def seq(self) -> str:
+        """Amino acid sequence of structure, only includes AAs in structure."""
         return ''.join([aa.letter for aa in self.amino_acids])
 
     @property
-    def aligned_seq(self):
+    def aligned_seq(self) -> str:
+        """seq aligned to a ParentlAlignment."""
         seq_dict = {aa.res_seq_num: aa.letter for aa in self.amino_acids}
         return ''.join([seq_dict.get(i, '-') for i in range(max(seq_dict)+1)])
 
     @cached_property
-    def contacts(self):
+    def contacts(self) -> list[tuple[int, int]]:
         """Lazy evaluation of contacts.
 
         TODO: Refactor this to be easier to use in SCHEMA-RASPP. Options:
@@ -357,7 +373,7 @@ class PDBStructure:
 
     @classmethod
     def from_pdb_file(cls, f: Union[str, TextIOBase, BufferedIOBase],
-                      chain: str = 'A'):
+                      chain: str = 'A') -> 'PDBStructure':
         """Construct from PDB file without renumbering.
 
         Args:
@@ -387,14 +403,14 @@ class PDBStructure:
             amino_acids.append(aa)
         return cls(amino_acids)
 
-    def renumber(self, p1_aligned: SeqRecord.SeqRecord):
-        # Renumber pdb structure to match parental alignment.
+    def renumber(self, p1_aligned: SeqRecord.SeqRecord) -> None:
+        """Renumber pdb structure to match ParentAlignment."""
         pdb_atom_seq = ''.join([aa.letter for aa in self.amino_acids])
         p1_seq = str(p1_aligned.seq)
         aln = pairwise2.align.globalxx(p1_seq, pdb_atom_seq, gap_char='.',
                                        one_alignment_only=True)[0]
         pdb_iter = iter(self.amino_acids)
-        par_index = 1  # Start from 1 to match PDB standard.
+        par_index = 0  # PDB files normally index from 0.
         for i, (par_aa, pdb_aa) in enumerate(zip(aln.seqA, aln.seqB)):
             if pdb_aa != '.':
                 next(pdb_iter).renumber(par_index)

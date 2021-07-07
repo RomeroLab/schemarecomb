@@ -5,8 +5,9 @@ description = 'Designing recombinant protein libraries.'
 authors = ['Bennett Bremer <bennettjamesbremer@gmail.com>']
 
 [tool.poetry.dependencies]
-python = '^3.9'
+python = '3.9'
 biopython = '^1.79'
+scipy = '^1.6.3'
 
 [tool.poetry.dev-dependencies]
 pytest = '^6.2.4'

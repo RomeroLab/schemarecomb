@@ -116,8 +116,8 @@ class ParentAlignment:
             raise ValueError('sequences must not be empty.')
         self.auto_align = auto_align
         self.aligned_sequences = None  # not needed here, included for clarity
-        self.pdb_structure = pdb_structure
         self.sequences = sequences  # must be set here since it affects others
+        self.pdb_structure = pdb_structure  # relies on aligned_sequences
 
     def __setattr__(self, name, value) -> None:
         """Set aligned_sequences according to auto_align if sequences reset."""
@@ -129,7 +129,8 @@ class ParentAlignment:
                 self.align()
             else:
                 self.aligned_sequences = None
-                if self.pdb_structure is not None:
+                if hasattr(self, 'pdb_structure') and \
+                   self.pdb_structure is not None:
                     self.pdb_structure.is_renumbered = False
         elif name == 'pdb_structure' and value is not None and self.auto_align:
             # Want to renumber pdb if aligned.
@@ -268,7 +269,7 @@ class ParentAlignment:
         os.remove(OUT_FN)
 
         # Renumber pdb_structure if available.
-        if self.pdb_structure is not None:
+        if hasattr(self, 'pdb_structure') and self.pdb_structure is not None:
             self.pdb_structure.renumber(self.aligned_sequences[0])
 
     def to_json(self) -> str:

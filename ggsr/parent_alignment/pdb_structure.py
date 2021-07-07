@@ -63,7 +63,9 @@ from typing import Union
 from urllib.request import urlopen
 
 from Bio import pairwise2, SeqRecord
-from Bio.SeqUtils import IUPACData
+from Bio.SeqUtils import seq1
+import numpy as np
+from scipy.spatial import distance
 
 from .blast_query import blast_query
 from .utils import _calc_identity
@@ -218,7 +220,7 @@ class AminoAcid:
         res_seq_num = atoms[0].res_seq_num
         assert all(a.res_seq_num == res_seq_num for a in atoms)
         three_letters = res_name[0] + res_name[1:].lower()
-        letter = IUPACData.protein_letters_3to1[three_letters]
+        letter = seq1(three_letters)
         return cls(atoms, res_name, res_seq_num, letter)
 
     def to_lines(self) -> str:
@@ -262,6 +264,15 @@ class PDBStructure:
     amino_acids: list[AminoAcid]
     is_renumbered: bool = False
 
+    @property
+    def seq(self):
+        return ''.join([aa.letter for aa in self.amino_acids])
+
+    @property
+    def aligned_seq(self):
+        seq_dict = {aa.res_seq_num: aa.letter for aa in self.amino_acids}
+        return ''.join([seq_dict.get(i, '-') for i in range(max(seq_dict)+1)])
+
     @cached_property
     def contacts(self):
         """Lazy evaluation of contacts.
@@ -273,8 +284,16 @@ class PDBStructure:
             - Add PDBStructure method with two AA input (dict?).
             - Add contacting residues to AminoAcid object.
         """
-        aa_combos = combinations(self.amino_acids, 2)
-        return [(aa1, aa2) for aa1, aa2 in aa_combos if aa1.d(aa2) < 4.5]
+        contacts = []
+        aa_coords = [aa.coords for aa in self.amino_acids]
+        combos = combinations(range(len(aa_coords)), 2)
+        for ii, j in combos:
+            a1 = aa_coords[ii]
+            a2 = aa_coords[j]
+            d = distance.cdist(a1, a2)
+            if np.any(d < 4.5):
+                contacts.append((ii, j))
+        return contacts
 
     @classmethod
     def from_parents(cls,
@@ -337,7 +356,7 @@ class PDBStructure:
         return pdb_structure
 
     @classmethod
-    def from_pdb_file(cls, f: Union[TextIOBase, BufferedIOBase],
+    def from_pdb_file(cls, f: Union[str, TextIOBase, BufferedIOBase],
                       chain: str = 'A'):
         """Construct from PDB file without renumbering.
 
@@ -345,6 +364,8 @@ class PDBStructure:
             f: file-like PDB structure.
             chain: Chain to include in constructed object.
         """
+        if isinstance(f, str):
+            f = open(f)
         amino_acids = []
         curr_atoms = []
         for line in f:
@@ -361,21 +382,25 @@ class PDBStructure:
                 curr_atoms = [atom]
             else:
                 curr_atoms.append(atom)
+        if curr_atoms:
+            aa = AminoAcid.from_atoms(curr_atoms)
+            amino_acids.append(aa)
         return cls(amino_acids)
 
-    def renumber(self, p1_aligned):
+    def renumber(self, p1_aligned: SeqRecord.SeqRecord):
         # Renumber pdb structure to match parental alignment.
         pdb_atom_seq = ''.join([aa.letter for aa in self.amino_acids])
-        aln = pairwise2.align.globalxx(p1_aligned, pdb_atom_seq, gap_char='.',
+        p1_seq = str(p1_aligned.seq)
+        aln = pairwise2.align.globalxx(p1_seq, pdb_atom_seq, gap_char='.',
                                        one_alignment_only=True)[0]
         pdb_iter = iter(self.amino_acids)
         par_index = 1  # Start from 1 to match PDB standard.
-        for par_aa, pdb_aa in zip(aln.seqA, aln.seqB):
+        for i, (par_aa, pdb_aa) in enumerate(zip(aln.seqA, aln.seqB)):
             if pdb_aa != '.':
                 next(pdb_iter).renumber(par_index)
             if par_aa == '.':
                 # TODO: handle this more formally?
-                print('warning: residue in pdb but not par')
+                print(f'warning: residue {i} in pdb but not par')
             else:
                 par_index += 1
 

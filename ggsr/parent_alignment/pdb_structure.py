@@ -403,11 +403,12 @@ class PDBStructure:
             amino_acids.append(aa)
         return cls(amino_acids)
 
-    def renumber(self, p1_aligned: SeqRecord.SeqRecord) -> None:
+    def renumber(self, p1_aligned: Union[str, SeqRecord.SeqRecord]) -> None:
         """Renumber pdb structure to match ParentAlignment."""
         pdb_atom_seq = ''.join([aa.letter for aa in self.amino_acids])
-        p1_seq = str(p1_aligned.seq)
-        aln = pairwise2.align.globalxx(p1_seq, pdb_atom_seq, gap_char='.',
+        if isinstance(p1_aligned, SeqRecord.SeqRecord):
+            p1_aligned = str(p1_aligned.seq)
+        aln = pairwise2.align.globalxx(p1_aligned, pdb_atom_seq, gap_char='.',
                                        one_alignment_only=True)[0]
         pdb_iter = iter(self.amino_acids)
         par_index = 0  # PDB files normally index from 0.

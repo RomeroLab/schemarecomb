@@ -202,7 +202,7 @@ def test_pdb_structure():
     # Make auto-aligned ParentAlignment and extract needed sequences.
     p_aln = ParentAlignment(parental_seqs)
     p_seqs = p_aln.sequences
-    p1_aligned = str(p_aln.aligned_sequences[0].seq)
+    p1_aligned = p_aln.aligned_sequences[0]
 
     pdb = PDBStructure.from_parents(p_seqs, p1_aligned)
     assert pdb.amino_acids  # make sure it's not empty
@@ -210,6 +210,6 @@ def test_pdb_structure():
 
     # Check that p_aln and pdb numbering lines up.
     for aa in pdb.amino_acids:
-        assert aa.letter == p_aln.aligned_sequences[0].seq[aa.res_seq_num-1]
+        assert aa.letter == p_aln.aligned_sequences[0].seq[aa.res_seq_num]
 
     assert pdb.contacts  # TODO: Check this against a reference.

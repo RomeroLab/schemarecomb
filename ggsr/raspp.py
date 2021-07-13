@@ -4,10 +4,9 @@ TODO: Refactor to separate codon_options, EnergyFunctions.
 """
 
 from collections.abc import Iterable
-from collections import namedtuple
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from itertools import product, combinations
-from typing import Optional, Union
+from typing import NamedTuple, Optional, Union
 
 import numpy as np
 
@@ -190,25 +189,25 @@ class RASPP:
                                                   start_overhang, end_overhang)
 
         # Build RASPP graph nodes.
-        self.columns = [[Node(0, 0, [], {})]]
+        self.columns = [[_Node(0, 0)]]
         for col in range(1, n + 1):
             # No edges into node with index less than col => exclude.
             col_indices = [index for index in self.breakpoints if index >= col]
-            new_col = [Node(col, index, [], {}) for index in col_indices]
+            new_col = [_Node(col, index) for index in col_indices]
             self.columns.append(new_col)
 
         # Fill out edges between nodes.
-        self.columns[0][0].fill_out(parent_aln, self.columns[1], energy_func)
+        self.columns[0][0].fill_out(self.columns[1], energy_func)
         for col, next_col in zip(self.columns[1:], self.columns[2:]):
             for node in col[:-1]:
-                node.fill_out(parent_aln, next_col, energy_func)
+                node.fill_out(next_col, energy_func)
 
     def eval_bps(self, bps: Iterable[int]) -> float:
         """Average SCHEMA energy of sequence library with given breakpoints."""
         e = 0.0
         curr_node = self.columns[0][0]
         for bp in bps:
-            edge = curr_node.edges[bp]
+            edge = curr_node.out_edges[bp]
             e += edge.e_diff
             curr_node = edge.out_node
         return e
@@ -230,46 +229,141 @@ class RASPP:
         col_iter = iter(self.columns)
 
         curr_col = next(col_iter)
-        curr_col[0].min_energy = 0.0
-        curr_col[0].min_bps = ()
+        curr_col[0]._min_energy = 0.0
+        curr_col[0]._min_bps = ()
 
         for col in col_iter:
             for node in col:
-                node.min_energy = 100000000000  # large number
+                node._min_energy = 100000000000  # large number
                 for edge in node.in_edges:
-                    new_energy = edge.in_node.min_energy + edge.e_diff
-                    if new_energy < node.min_energy:
-                        node.min_energy = new_energy
-                        node.min_bps = edge.in_node.min_bps + (node.index,)
+                    new_energy = edge.in_node._min_energy + edge.e_diff
+                    if new_energy < node._min_energy:
+                        node._min_energy = new_energy
+                        node._min_bps = edge.in_node._min_bps + (node.index,)
 
-        best_node = min(self.columns[-1], key=lambda x: x.min_energy)
-        return best_node.min_bps, best_node.min_energy
+        best_node = min(self.columns[-1], key=lambda x: x._min_energy)
+        return best_node._min_bps, best_node._min_energy
 
 
-def _get_valid_patterns(cdn_sets, reverse=False):
+def _get_valid_patterns(
+    cdn_sets: tuple[set[str]],
+    reverse: bool = False
+) -> tuple[set[str]]:
+    """DNA patterns in the codon alignment for Golden Gate site construction.
+
+    Helper function for _calculate_breakpoints. Each input set corresponds to
+    the valid codons that encode a given amino acid at a given position in the
+    parent alignment.  For example, if a certain position has isoleucine and
+    threonine, and the valid codons for these amino acids are ('ATT', 'ATC')
+    and ('ACC', 'ACT'), respectively, ({'ATT', 'ATC'), {'ACC', 'ACT'}) will be
+    passed in. The length 1, 2, and 3 patterns are returned. See the example
+    below for more information.
+
+    Args:
+        cnd_sets: Collections of codons that code for each amino acids at a
+            given site in the parent alignment.
+        reverse: If the patterns should be explored right to left instead of
+            right to left (default).
+
+    Returns:
+        Collections of all length 1, 2, and 3 patterns found.
+
+    Example:
+        _get_valid_patterns(({'ATT', 'ATC'}, {'ACC', 'ACT'})) will return
+            ({'A'}, {}, {}) since 'A' can be found as the first letter at least
+            once in each set. There are no length 2 patterns because there are
+            no common letters at the second codon position.
+        _get_valid_patterns(({'ATT', 'ATC'}, {'ACC', 'ACT'}), True) will return
+            ({'C', 'T'}, {}, {}) since 'C' and 'T' can both be found as the
+            last letter at least once in each set.
+
+    TODO: Eliminate crossovers based on invalid/bad GG sites.
+    """
+
+    # If your codons are not three bases long, you're either wrong or doing
+    # xenobiology.
+    assert all(all(len(cdn) == 3 for cdn in cdn_set) for cdn_set in cdn_sets)
+
+    # If not reverse, cdn_shrink removes the right side letter of each codon.
+    # If reverse, cdn_shrink removes the left side letter of each codon.
     fwd_lim, bwd_lim = int(reverse), 1 - int(reverse)
 
-    def cdn_reduce(cdns):
+    def cdn_shrink(cdns):
         return {cdn[fwd_lim:len(cdn)-bwd_lim] for cdn in cdns}
 
-    # 1 AA per codon, so len 3 patterns exist <=> len(cdn_sets) == 1.
+    # 1 AA per codon, so len 3 patterns exist iff len(cdn_sets) == 1.
     if len(cdn_sets) == 1:
         len_3_sets = tuple(cdn_sets)[0]
     else:
         len_3_sets = {}
 
-    cdn_sets = [cdn_reduce(cdns) for cdns in cdn_sets]
+    # Remove a codon letter and take intersection to get all len 2 patterns.
+    cdn_sets = [cdn_shrink(cdns) for cdns in cdn_sets]
     len_2_sets = set.intersection(*cdn_sets)
 
-    cdn_sets = [cdn_reduce(cdns) for cdns in cdn_sets]
+    # Remove another letter and take intersection to get all len 1 patterns.
+    cdn_sets = [cdn_shrink(cdns) for cdns in cdn_sets]
     len_1_sets = set.intersection(*cdn_sets)
 
     return len_1_sets, len_2_sets, len_3_sets
 
 
-def _calculate_breakpoints(parent_aln, codon_options, start_overhang,
-                           end_overhang):
+def _calculate_breakpoints(
+    parent_aln: ParentAlignment,
+    codon_options: dict[str, tuple[str]],
+    start_overhang: Optional[tuple[int, str]] = None,
+    end_overhang: Optional[tuple[int, str]] = None,
+) -> dict[int, list[tuple[int, str]]]:
+    """Calculate the breakpoints for the parent alignment.
+
+    Currently supports length four Golden Gate sites.
+
+    # TODO: move this to module header?
+    A breakpoint is potential site for recombination of the parental sequences.
+    The terms "breakpoint" and "crossover" are used synonymously. A
+    breakpoint's position is the index of the breakpoint's second amino acid in
+    the parent alignment. This definition allows the breakpoint position to
+    nicely slice the parent alignment into blocks. For example, let the
+    position of the k-1th, kth, and k+1th breakpoints be b_k_1, b_k, b_k__1,
+    respectively. Then for parent sequence p, the block before the breakpoint
+    is p[b_k_1:b_k] and the block after is p[b_k:b_k__1]. Valid breakpoints
+    contain candidate overhangs, defined next.
+
+    Overhangs are the DNA sticky ends used in a Golden Gate reaction. In this
+    module, each overhang consists of a positional shift and DNA sequence. The
+    former is overhang's position relative to the first base pair in the left
+    codon of the breakpoint (codon index b_k - 1).
+
+    Example: Suppose the amino acids at indices b_k-1 and b_k at 'I' and 'T'
+        for all parents in the parent alignment and codon_options contains
+        {'M': ('ATG,), 'T': ('ACC')}}. Then for each parent p, the only valid
+        codon sequence for p[b_k-1:b_k+1] is ATGACC, and the overhangs are
+        (0, 'ATGA'), (1, 'TGAC'), (2, 'GACC'). This breakpoint will be
+        represented in the breakpoints dictionary as
+        {b_k: [(0, 'ATGA'), (1, 'TGAC'), (2, 'GACC')]}.
+
+    Args:
+        parent_aln: parent alignment for breakpoint calculation.
+        codon_options: Amino acid to available codon mapping. Used in
+            Golden Gate site design and library sequence design. Change
+            this to include or exclude certain codons based on codon
+            optimization schemes, reassigned codons, etc.
+        start_overhang: Positional shift and nucleotide sequence of Golden
+            Gate site for vector insertion at start of sequence. Not
+            factored into calculations if None.
+        end_overhang: Positional shift and nucleotide sequence of Golden
+            Gate site for vector insertion at end of sequence. Not factored
+            into calculations if None.
+
+    Returns:
+        Mapping from breakpoint position to valid breakpoint overhangs.
+    """
+
     aln_seqs = [str(sr.seq) for sr in parent_aln.aligned_sequences]
+
+    # Check that codon_options contain all AAs in parent alignment.
+    aa_alphabet = set().union(*aln_seqs)
+    assert all(aa in codon_options for aa in aa_alphabet)
 
     # Amino acids at each position.
     aln_sets = zip(*aln_seqs)
@@ -277,11 +371,15 @@ def _calculate_breakpoints(parent_aln, codon_options, start_overhang,
     # Sets of codons for each amino acid at an alignment position.
     aln_cdns = [{codon_options[aa] for aa in pos_aas} for pos_aas in aln_sets]
 
+    breakpoints = {}
+
     if start_overhang is not None:
-        breakpoints = {0: [start_overhang]}
+        breakpoints[0] = [start_overhang]
 
     # Search possible Golden Gate sites by iterating over adjacent codons.
     for bp, (cdns1, cdns2) in enumerate(zip(aln_cdns, aln_cdns[1:]), 1):
+
+        # Can't do Golden Gate at a site with gaps.
         if '---' in cdns1 or '---' in cdns2:
             continue
 
@@ -314,24 +412,54 @@ def _calculate_breakpoints(parent_aln, codon_options, start_overhang,
     return breakpoints
 
 
-# might want to add edge to this
-Edge = namedtuple('Edge', ['e_diff', 'in_node', 'out_node'])
+class _Edge(NamedTuple):
+    """Edge between nodes in RASPP graph.
+
+    Public Attributes:
+        e_diff: Difference in energy between out_node and in_node.
+        in_node: Input node.
+        out_node: Output_node.
+    """
+    e_diff: float
+    in_node: '_Node'
+    out_node: '_Node'
 
 
-@dataclass(repr=False)
-class Node:
+@dataclass
+class _Node:
+    """Node in RASPP graph.
+
+    Public Attributes:
+        col: Column where this node is located.
+        index: Position of breakpoint represented by this node.
+        in_edges: Edges that point to this node.
+        out_edges: Mapping from edge.index to edge for each edge with this node
+            as in_node.
+
+    Public Methods:
+        fill_out: Fill out edges from this node to next column.
+    """
     col: int
     index: int
-    in_edges: list
-    edges: dict
+    in_edges: list[_Edge] = field(default_factory=list)
+    out_edges: dict[int, _Edge] = field(default_factory=dict)
 
-    def fill_out(self, pa, next_col, energy_func):
-        """Fill out edges from this node to next column."""
+    def fill_out(
+        self,
+        next_col: list['_Node'],
+        energy_func: EnergyFunction
+    ) -> None:
+        """Fill out edges from this node to next column.
+
+        Args:
+            next_col: Next column in graph.
+            energy_func: Used to calculate energy between graph nodes.
+        """
 
         def add_edge(energy, target_node):
             """Add an edge from self to target_node."""
-            edge = Edge(e, self, target_node)
-            self.edges[target_node.index] = edge
+            edge = _Edge(e, self, target_node)
+            self.out_edges[target_node.index] = edge
             target_node.in_edges.append(edge)
 
         # Next_col must have sorted indices.
@@ -375,29 +503,59 @@ class Node:
         add_edge(e, curr_node)
 
 
+def average_m(pa: ParentAlignment, bps: tuple[int]):
+    """Calculate the average number of mutations in library."""
+    def calc_muts(seq1, seq2):
+        return sum(1 for a1, a2 in zip(seq1, seq2) if a1 != a2)
+
+    p_seqs = [str(sr.seq) for sr in pa.aligned_sequences]
+
+    p = len(p_seqs)  # number of parents
+    N = len(p_seqs[0])  # number of amino acids in alignment
+
+    # bps must be (0, ..., N).
+    if bps[0] != 0:
+        bps = (0,) + bps
+    if bps[-1] != N:
+        bps += (N,)
+
+    n = len(bps) - 2  # number of crossovers. number of blocks is n+1
+
+    # Construct all library chimeras to calculate average mutations.
+    total_muts = 0
+    for i, block_parents in enumerate(product(p_seqs, repeat=n+1)):
+        # Construct chimera from parent blocks.
+        block_seqs = [blkpar[start: end] for blkpar, start, end
+                      in zip(block_parents, bps, bps[1:])]
+        chimera = ''.join(block_seqs)
+
+        # Chimera m is the number of mutations from the closest parent.
+        total_muts += min(calc_muts(chimera, parent) for parent in p_seqs)
+
+    return total_muts / p**(n+1)
+
+
 if __name__ == '__main__':
-    '''
     loc = '../tests/bgl3_sample/truncated/'
     pa = ParentAlignment.from_fasta(loc+'trunc.fasta')
     pdb = PDBStructure.from_pdb_file(loc+'trunc.pdb')
     '''
-    import time
-    s = time.time()
     loc = '../tests/bgl3_sample/'
     pa = ParentAlignment.from_fasta(loc+'bgl3_sequences.fasta')
     pdb = PDBStructure.from_pdb_file(loc+'1GNX.pdb')
+    '''
     pa.pdb_structure = pdb
 
     vector_overhangs = [(0, 'TATG'), (3, 'TGAG')]
-    run_params = {'n': 2, 'all_nodes': False,
-                  'vector_overhangs': vector_overhangs}
-    # TODO: add minBL, maxBL
-    s1 = time.time()
-    raspp = RASPP(pa, run_params)
-    r_time = time.time() - s1
-    # raspp.eval_all_bps()
-    s1 = time.time()
-    raspp.max_bps()
-    print('raspp', r_time)
-    print('max', time.time() - s1)
-    print(time.time() - s)
+    n = 2
+    raspp = RASPP(pa, n, vector_overhangs[0], vector_overhangs[1])
+    raspp.eval_all_bps()
+    raspp.min_bps()
+
+    N = len(pa.aligned_sequences[0].seq)
+    opt_time = 0.0
+    opt_single_time = 0.0
+    naive_time = 0.0
+    for bps in combinations(range(1, 9), 5):
+        m = average_m(pa, (0,) + bps)
+        print(bps, m)

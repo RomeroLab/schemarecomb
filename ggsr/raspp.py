@@ -189,11 +189,12 @@ class RASPP:
                                                   start_overhang, end_overhang)
 
         # Build RASPP graph nodes.
-        self.columns = [[_Node(0, 0)]]
+        self.columns = [[_Node(0, 0, [start_overhang])]]
         for col in range(1, n + 1):
-            # No edges into node with index less than col => exclude.
-            col_indices = [index for index in self.breakpoints if index >= col]
-            new_col = [_Node(col, index) for index in col_indices]
+            # No edges into node => exclude it.
+            min_index = self.columns[col-1][0].index + 1
+            new_col = [_Node(col, index, self.breakpoints[index])
+                       for index in self.breakpoints if index >= min_index]
             self.columns.append(new_col)
 
         # Fill out edges between nodes.
@@ -225,24 +226,65 @@ class RASPP:
         return bps_e
 
     def min_bps(self) -> tuple[tuple[int], float]:
-        """Find the set of breakpoints with minimum energy."""
+        """Find the set of breakpoints with minimum energy.
+
+        TODO: Add limits. Will make min/maxBL traversal easier. (maybe?)
+        """
         col_iter = iter(self.columns)
 
         curr_col = next(col_iter)
-        curr_col[0]._min_energy = 0.0
-        curr_col[0]._min_bps = ()
+        curr_col[0]._min_lib = Library(0.0, curr_col[0].breakpoint)
 
         for col in col_iter:
             for node in col:
-                node._min_energy = 100000000000  # large number
+                print(node.col, node.index)
+                min_lib = Library(1000000.0, {})  # large number
                 for edge in node.in_edges:
-                    new_energy = edge.in_node._min_energy + edge.e_diff
-                    if new_energy < node._min_energy:
-                        node._min_energy = new_energy
-                        node._min_bps = edge.in_node._min_bps + (node.index,)
+                    in_lib = edge.in_node._min_lib
+                    new_lib = in_lib.expand(edge.e_diff, node.breakpoint)
+                    print('pos', edge.in_node.index)
+                    if new_lib.energy < min_lib.energy:
+                        print('new set', edge.in_node.index)
+                        min_lib = new_lib
+                assert min_lib.breakpoints  # make sure it's been set
+                node._min_lib = min_lib
 
-        best_node = min(self.columns[-1], key=lambda x: x._min_energy)
-        return best_node._min_bps, best_node._min_energy
+        best_node = min(self.columns[-1], key=lambda x: x._min_lib.energy)
+        return best_node._min_lib
+
+    def all_libraries(self):
+        """DFS through graph."""
+        libs = []
+        n = len(self.columns) - 1
+
+        first_node = self.columns[0][0]
+        stack = [(first_node, Library(0.0, first_node.breakpoint))]
+        while stack:
+            curr_node, curr_lib = stack.pop()
+            if curr_node.col == n:
+                # TODO: Only allow libraries that end at N? Bigger problem
+                # than just this method.
+                libs.append(curr_lib)
+                continue
+            for edge in reversed(curr_node.out_edges.values()):
+                new_node = edge.out_node
+                new_lib = curr_lib.expand(edge.e_diff, new_node.breakpoint)
+                stack.append((new_node, new_lib))
+        return libs
+
+
+@dataclass(repr=False)
+class Library:
+    energy: float
+    breakpoints: dict[int, list[tuple[int, str]]] = field(default_factory=dict)
+
+    def expand(self, e_diff: float, new_bp: dict[int, list[tuple[int, str]]]):
+        new_e = self.energy + e_diff
+        new_bps = self.breakpoints | new_bp
+        return type(self)(new_e, new_bps)
+
+    def __repr__(self):
+        return f'Library({self.energy}, {list(self.breakpoints.keys())})'
 
 
 def _get_valid_patterns(
@@ -441,8 +483,13 @@ class _Node:
     """
     col: int
     index: int
+    overhangs: list[tuple[int, str]]
     in_edges: list[_Edge] = field(default_factory=list)
     out_edges: dict[int, _Edge] = field(default_factory=dict)
+
+    @property
+    def breakpoint(self):
+        return {self.index: self.overhangs}
 
     def fill_out(
         self,
@@ -549,6 +596,10 @@ if __name__ == '__main__':
     vector_overhangs = [(0, 'TATG'), (3, 'TGAG')]
     n = 2
     raspp = RASPP(pa, n, vector_overhangs[0], vector_overhangs[1])
+    all_libs = raspp.all_libraries()
+    for lib in all_libs:
+        print(lib)
+    '''
     raspp.eval_all_bps()
     raspp.min_bps()
 
@@ -559,3 +610,4 @@ if __name__ == '__main__':
     for bps in combinations(range(1, 9), 5):
         m = average_m(pa, (0,) + bps)
         print(bps, m)
+    '''

@@ -1,23 +1,37 @@
-from dataclasses import dataclass, field
+"""Protein libraries.
+
+This module provides the RecombinantLibrary class that represents a library of
+chimeric proteins from a given alignment of parent amino acids sequences. Each
+library is defined by a series of breakpoints, which are the indices where the
+parent alignment is recombined into chimeras.
+"""
+
+# from dataclasses import dataclass, field
 from functools import cached_property
-from itertools import product, combinations
+from itertools import combinations
 
 from ggsr.parent_alignment import ParentAlignment
 
 
-@dataclass(repr=False)
-class Library:
-    energy: float
-    breakpoints: dict[int, list[tuple[int, str]]] = field(default_factory=dict)
+# @dataclass(repr=False)
+class RecombinantLibrary:
+    def __init__(
+        self,
+        energy: float,
+        breakpoints: dict[int, list[tuple[int, str]]],
+        parent_alignment: ParentAlignment,
+        bp_to_group: dict[int, int] = None,
+        group_bp_cache: dict[tuple[int], float] = None,
+    ):
+        self.energy = energy
+        self.breakpoints = breakpoints
+        self.parent_alignment = parent_alignment
 
-    # TODO: remove
-    '''
-    nonredun_bp_map: dict[int, int] = field(default_factory=dict)
-
-    @property
-    def nonredundant_breakpoint_indices(self):
-        return tuple(self.nonredun_bp_map[bpi] for bpi in self.breakpoints)
-    '''
+        self.mutation_rate = self.calc_average_m(
+            parent_alignment,
+            bp_to_group,
+            group_bp_cache
+        )
 
     @cached_property
     def min_block_len(self):
@@ -41,6 +55,7 @@ class Library:
     def average_m(self):
         return self._m
 
+    '''
     def calc_average_m_naive(self, pa: ParentAlignment, bp_to_group,
                              group_bp_cache):
         """Calculate the average number of mutations in library.
@@ -93,6 +108,7 @@ class Library:
 
         self._m = m
         return m
+    '''
 
     def calc_average_m(self, pa: ParentAlignment, bp_to_group, group_bp_cache):
         """Calculate the average number of mutations in library."""
@@ -101,10 +117,13 @@ class Library:
             assert len(seq1) == len(seq2)
             return sum(1 for a1, a2 in zip(seq1, seq2) if a1 != a2)
 
-        bp_groups = tuple(bp_to_group[bp] for bp in self.breakpoints)
-        if (M := group_bp_cache.get(bp_groups)) is not None:
-            self._m = M
-            return M
+        print(bp_to_group)
+        print(group_bp_cache)
+        if bp_to_group is not None and group_bp_cache is not None:
+            bp_groups = tuple(bp_to_group[bp] for bp in self.breakpoints)
+            if (M := group_bp_cache.get(bp_groups)) is not None:
+                self._m = M
+                return M
 
         seqs = [str(sr.seq) for sr in pa.aligned_sequences]
         blmuts = []
@@ -144,7 +163,8 @@ class Library:
         M = M_sum / num_parents**num_blocks
         self._m = M
 
-        group_bp_cache[bp_groups] = M
+        if bp_to_group is not None and group_bp_cache is not None:
+            group_bp_cache[bp_groups] = M
 
         return M
 

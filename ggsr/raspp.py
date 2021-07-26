@@ -12,9 +12,8 @@ from dataclasses import dataclass, field
 from itertools import product, combinations
 from typing import NamedTuple, Optional, Union
 
-import numpy as np
-
-from ggsr.library import Library
+from ggsr.energy_functions import EnergyFunction, SCHEMA
+from ggsr.library import RecombinantLibrary
 from ggsr.parent_alignment import ParentAlignment
 from ggsr.parent_alignment.pdb_structure import PDBStructure
 
@@ -112,6 +111,7 @@ class RASPP:
             for node in col[:-1]:
                 node.fill_out(next_col, energy_func)
 
+    # TODO: Refactor or remove next two methods to be compatible?
     def eval_bps(self, bps: Iterable[int]) -> float:
         """Average SCHEMA energy of sequence library with given breakpoints."""
         e = 0.0
@@ -138,107 +138,75 @@ class RASPP:
         self,
         min_block_len: Optional[int] = None,
         max_block_len: Optional[int] = None
-    ) -> 'Library':
+    ) -> 'RecombinantLibrary':
         """Find the set of breakpoints with minimum energy."""
+
         n = len(self.columns) - 1  # number of breakpoints
-        N = sorted(self.breakpoints)[-1]  # length of sequences
+        N = len(str(self.pa.aligned_sequences[0].seq))
+
         if min_block_len is None:
             min_block_len = 0
         if max_block_len is None:
             max_block_len = N
 
-        col_iter = iter(self.columns)
-
-        curr_col = next(col_iter)
-        curr_col[0]._min_lib = Library(0.0, curr_col[0].breakpoint)
-
-        for col in col_iter:
-            for node in col:
-                min_lib = Library(1000000.0, {})  # large number
-                for edge in node.in_edges:
-                    block_len = node.index - edge.in_node.index
-
-                    # doesn't fit block len requirements
-                    if not min_block_len <= block_len <= max_block_len:
-                        continue
-                    if not hasattr(edge.in_node, '_min_lib'):
-                        continue
-                    if node.col == n:
-                        n_block_len = N - node.index
-                        if not min_block_len <= n_block_len <= max_block_len:
-                            continue
-                    in_lib = edge.in_node._min_lib
-                    new_lib = in_lib.expand(edge.e_diff, node.breakpoint)
-                    if new_lib.energy < min_lib.energy:
-                        min_lib = new_lib
-                if min_lib:
-                    node._min_lib = min_lib
-
-        candidate_libs = [node._min_lib for node in self.columns[-1]
-                          if hasattr(node, '_min_lib')]
-        if not candidate_libs:
-            raise LibrariesNotFoundError
-        return_lib = min(candidate_libs, key=lambda lib: lib.energy)
-        if return_lib.breakpoints:
-            # add last breakpoint
-            last_bp = {N: self.breakpoints[N]}
-            return_lib = return_lib.expand(0.0, last_bp)
-            return return_lib
-        raise LibrariesNotFoundError
-
-    def min_bps_refactor(
-        self,
-        min_block_len: Optional[int] = None,
-        max_block_len: Optional[int] = None
-    ) -> 'Library':
-        """Find the set of breakpoints with minimum energy."""
-        n = len(self.columns) - 1  # number of breakpoints
-        N = sorted(self.breakpoints)[-1]  # length of sequences
-        if min_block_len is None:
-            min_block_len = 0
-        if max_block_len is None:
-            max_block_len = N
-
+        # Memoized traversal over columns of graph to find minimum library.
+        # Record the minimum library for each node during traversal.
         first_node = self.columns[0][0]
-        next_stack = {first_node.index: (first_node,
-                                         Library(0.0, first_node.breakpoint))}
+        first_lib = _TempLibrary(0.0, first_node.breakpoint)
+        next_col_min_libs = {first_node: first_lib}
+        while next_col_min_libs:
+            curr_col_min_libs = next_col_min_libs
 
-        while next_stack:
-            curr_stack = list(next_stack.values())
-
-            if curr_stack[0][0].col == n:
+            # print(list(curr_col_min_libs)[0].col)
+            if list(curr_col_min_libs)[0].col == n:
+                # We've reached the last column.
                 break
-            next_stack = {}
 
-            # iterate over every node
-            for curr_node, curr_lib in curr_stack:
-                # iterate over possible edges
-                for edge in curr_node.out_edges.values():
+            # Mapping from each node in the next column to it's minimum energy
+            # library.
+            next_col_min_libs = {}
 
-                    # check that block is correct size
-                    next_block_len = edge.out_node.index - curr_node.index
+            # Iterate over every node and it's minimum energy library in the
+            # current column to find the minimum energy library for each node
+            # in the next column.
+            for curr_node, curr_min_lib in curr_col_min_libs.items():
+                # Iterate over all edges from curr_node. Each edge results in
+                # a candidate library built from curr_lib and the breakpoint
+                # from the node at the end of the edge.
+                for edge in curr_node.out_edges:
+                    new_node = edge.out_node
+
+                    # Check that the new block is of valid size.
+                    next_block_len = new_node.index - curr_node.index
                     if not min_block_len <= next_block_len <= max_block_len:
                         continue
 
-                    new_node = edge.out_node
-                    node_lib = next_stack.get(new_node.index)
-                    if node_lib is None or curr_lib.energy + edge.e_diff \
-                       < node_lib[1].energy:
-                        new_lib = curr_lib.expand(edge.e_diff,
-                                                  new_node.breakpoint)
-                        next_stack[new_node.index] = (new_node, new_lib)
+                    # Get the best library for new_node so far and compare to
+                    # library from curr_node. If no best library or curr_node
+                    # library is best, set as the best library.
+                    best_lib = next_col_min_libs.get(new_node)
+                    if best_lib is None or curr_min_lib.energy + edge.e_diff \
+                       < best_lib.energy:
+                        new_lib = curr_min_lib.expand(edge.e_diff,
+                                                      new_node.breakpoint)
+                        next_col_min_libs[new_node] = new_lib
 
-        candidate_libs = [lib for node, lib in curr_stack
+        candidate_libs = [lib for node, lib in curr_col_min_libs.items()
                           if min_block_len <= N - node.index <= max_block_len]
         if not candidate_libs:
             raise LibrariesNotFoundError
         return_lib = min(candidate_libs, key=lambda lib: lib.energy)
-        if return_lib.breakpoints:
-            # add last breakpoint
-            last_bp = {N: self.breakpoints[N]}
-            return_lib = return_lib.expand(0.0, last_bp)
-            return return_lib
-        raise LibrariesNotFoundError
+        if not return_lib.breakpoints:
+            raise LibrariesNotFoundError
+
+        # add last breakpoint
+        last_bp = {N: self.breakpoints[N]}
+        temp_lib = return_lib.expand(0.0, last_bp)
+        e = temp_lib.energy
+        bps = temp_lib.breakpoints
+        return_lib = RecombinantLibrary(e, bps, self.pa, self._bp_to_group,
+                                        self._bp_group_M_cache)
+        return return_lib
 
     def vary_m_proxy(self, L_min, L_max):
         """Choose E-optimal libraries by varying block length as an M proxy.
@@ -255,7 +223,6 @@ class RASPP:
         # max_block_len.
         # TODO: DOUBLE CHECK THIS
         for min_block_len in range(L_min, L_max):
-            # for max_block_len in range(min_block_len+1, L_max+1):
             curr_best = None
             for max_block_len in range(L_max, min_block_len, -1):
                 print(min_block_len, max_block_len, '\r', end='')
@@ -265,11 +232,7 @@ class RASPP:
                     else:
                         curr_best = None
                 try:
-                    # TODO: Pick one of these options. Refactor is faster(?),
-                    # but neither gives the right answers.
-                    # lib = self.min_bps(min_block_len, max_block_len)
-
-                    lib = self.min_bps_refactor(min_block_len, max_block_len)
+                    lib = self.min_bps(min_block_len, max_block_len)
                     curr_best = lib
 
                     if lib not in chosen_libs:
@@ -285,7 +248,7 @@ class RASPP:
         self,
         min_block_len: Optional[int] = None,
         max_block_len: Optional[int] = None
-    ) -> list['Library']:
+    ) -> list['RecombinantLibrary']:
         """Get all possible libraries with depth-first graph traversal."""
         libs = []
         n = len(self.columns) - 1  # number of breakpoints
@@ -297,7 +260,8 @@ class RASPP:
             max_block_len = N
 
         first_node = self.columns[0][0]
-        stack = [(first_node, Library(0.0, first_node.breakpoint))]
+        first_lib = RecombinantLibrary(0.0, first_node.breakpoint)
+        stack = [(first_node, first_lib)]
         while stack:
             curr_node, curr_lib = stack.pop()
             if curr_node.col == n:
@@ -319,6 +283,17 @@ class RASPP:
                   f' and max_block_len={max_block_len}.'
             raise LibrariesNotFoundError(msg)
         return libs
+
+
+@dataclass
+class _TempLibrary:
+    energy: float
+    breakpoints: dict[int, list[tuple[int, str]]] = field(default_factory=dict)
+
+    def expand(self, e_diff: float, new_bp: dict[int, list[tuple[int, str]]]):
+        new_e = self.energy + e_diff
+        new_bps = self.breakpoints | new_bp
+        return type(self)(new_e, new_bps)
 
 
 class LibrariesNotFoundError(Exception):
@@ -449,17 +424,13 @@ def _calculate_breakpoints(
             breakpoint groups.
     """
 
-    aln_seqs = [str(sr.seq) for sr in parent_aln.aligned_sequences]
-
     # Check that codon_options contain all AAs in parent alignment.
-    aa_alphabet = set().union(*aln_seqs)
+    aa_alphabet = set().union(*parent_aln)
     assert all(aa in codon_options for aa in aa_alphabet)
 
-    # Amino acids at each position.
-    aln_sets = list(zip(*aln_seqs))
-
     # Sets of codons for each amino acid at an alignment position.
-    aln_cdns = [{codon_options[aa] for aa in pos_aas} for pos_aas in aln_sets]
+    aln_cdns = [{codon_options[aa] for aa in pos_aas}
+                for pos_aas in parent_aln]
 
     breakpoints = {}
 
@@ -515,7 +486,7 @@ def _calculate_breakpoints(
     for bp in bps:
         # If bp is not adjacent to last or has more than one amino acid, it
         # belongs to a new group.
-        if bp != curr_bps[-1] + 1 or len(set(aln_sets[bp-1])) != 1:
+        if bp != curr_bps[-1] + 1 or len(set(parent_aln[bp-1])) != 1:
             breakpoint_groups.append(curr_bps)
             curr_bps = [bp]
         else:
@@ -545,7 +516,7 @@ class _Edge(NamedTuple):
     out_node: '_Node'
 
 
-@dataclass
+@dataclass(repr=False)
 class _Node:
     """Node in RASPP graph.
 
@@ -563,7 +534,7 @@ class _Node:
     index: int
     overhangs: list[tuple[int, str]]
     in_edges: list[_Edge] = field(default_factory=list)
-    out_edges: dict[int, _Edge] = field(default_factory=dict)
+    out_edges: list[_Edge] = field(default_factory=list)
 
     @property
     def breakpoint(self):
@@ -584,7 +555,8 @@ class _Node:
         def add_edge(energy, target_node):
             """Add an edge from self to target_node."""
             edge = _Edge(e, self, target_node)
-            self.out_edges[target_node.index] = edge
+            # self.out_edges[target_node.index] = edge
+            self.out_edges.append(edge)
             target_node.in_edges.append(edge)
 
         # Next_col must have sorted indices.
@@ -627,6 +599,16 @@ class _Node:
         # Add the last edge. Doing it here avoids the StopIteration.
         add_edge(e, curr_node)
 
+    def __hash__(self):
+        return hash(repr(self))
+
+    def __repr__(self):
+        in_edges = [e.in_node.index for e in self.in_edges]
+        out_edges = [e.out_node.index for e in self.out_edges]
+        ret = f'Node({self.col}, {self.index}, {self.breakpoint}, ' \
+            f'{in_edges=}, {out_edges=})'
+        return ret
+
 
 if __name__ == '__main__':
     '''
@@ -640,13 +622,11 @@ if __name__ == '__main__':
     pa.pdb_structure = pdb
 
     vector_overhangs = [(0, 'TATG'), (3, 'TGAG')]
-    n = 7
+    n = 4
     raspp = RASPP(pa, n, vector_overhangs[0], vector_overhangs[1])
 
-    seqs = [str(s.seq) for s in pa.aligned_sequences]
-    aln_sets = [set(a) for a in zip(*seqs)]
-
     '''
+    aln_sets = [set(a) for a in pa]
     breakpoint_groups = []
     bps = iter(sorted(raspp.breakpoints)[1:-1])
     curr_bps = [next(bps)]

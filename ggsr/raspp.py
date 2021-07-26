@@ -1,6 +1,10 @@
 """Module for running the RASPP algorithm.
 
 TODO: Refactor to separate codon_options, EnergyFunctions.
+TODO: Add ABC for problem (RASPP superclass). Zheng et al. 2009 has joint
+optimization of stability and diversity. Thus there are more algorithms that
+may be useful to implement/replace RASPP. Does this necessitate renaming the
+package to something like ggrecomb?
 """
 
 from collections.abc import Iterable
@@ -10,6 +14,7 @@ from typing import NamedTuple, Optional, Union
 
 import numpy as np
 
+from ggsr.library import Library
 from ggsr.parent_alignment import ParentAlignment
 from ggsr.parent_alignment.pdb_structure import PDBStructure
 
@@ -22,112 +27,6 @@ AA_C31 = {'A': ('GCT', 'GCA'), 'R': ('CGT', 'CGA'), 'N': ('AAT',),
           'F': ('TTT',), 'P': ('CCT', 'CCA'), 'S': ('AGT', 'TCA'),
           'T': ('ACA', 'ACT'), 'W': ('TGG',), 'Y': ('TAT',),
           'V': ('GTT', 'GTA'), '*': ('TGA',), '-': ('---',)}
-
-
-class EnergyFunction:
-    pass
-
-
-class SCHEMA(EnergyFunction):
-    """SCHEMA energy.
-
-    Given a PDB structure and a multiple sequence alignment, the SCHEMA energy
-    of a recombinant sequence is the number of pairwise interactions broken by
-    recombination. Expressed as an equation (Endelman et al. 2004 eq. 7):
-
-        E = sum_i sum_{j>i} C_{i,j} D_{i,j}
-
-        where:
-            C_{i,j} = 1 if residues i and j are within 4.5 Angstroms, else 0.
-            D_{i,j} = 0 if the amino acids at positions i and j in the
-                recombinant sequence are also present together in any parent,
-                else 0.
-
-    Example: If "AEH" and "GQH" are aligned parents with contacts (0, 1) and
-        (1, 2), chimera "AQH" has a SCHEMA energy of 1.0 because residues 'A'
-        and 'Q' are not found in any parents at positions 0 and 1,
-        respectively, and there is a contact at these positions. Although
-        residues 1 and 2 are contacting, 'Q' and 'H' are found together at
-        these positions in the second parent, so D_{0,1} = 0 and doesn't
-        contribute to the SCHEMA energy.
-
-    See Voigt et al. 2002 and Silberg et al. 2004 for more information.
-
-    Public methods:
-        block_energy: Average SCHEMA energy of a section of a parent multiple
-            sequence alignment.
-        increment_block_energy: Average SCHEMA energy difference between a
-            block and a block decreased by one residue.
-    """
-    def __init__(self, pa: ParentAlignment):
-        """Generate the SCHEMA energy matrix for block calculation.
-
-        E_matrix is a square matrix with the same size as the length of
-        alignment. E_matrix_{r,j} is Endelman et al. 2004 eq. 6. with the r and
-        t sums removed and evaluated for average SCHEMA energy for a specific r
-        and t. Then eq. 6 can be evaluated for a given block by summing over
-        E_matrix_{r,t}.
-
-        Args:
-            pa: Parent sequence alignment. Must have pdb_structure attribute.
-        """
-        alignment = list(zip(*pa.aligned_sequences))
-        self.E_matrix = np.zeros((len(alignment), len(alignment)))
-
-        # Only need to evaluate at contacts because otherwise C_{i,j} = 0.
-        for i, j in pa.pdb_structure.contacts:
-            # Get the ordered parent amino acids at i and j.
-            AAs_i, AAs_j = alignment[i], alignment[j]
-
-            # Parent amino acid pair might be redundant.
-            parental = set(zip(AAs_i, AAs_j))
-
-            # For each possible recombinant calculate D_ij. E_matrix entry
-            # is this sum over the number of possible recombinants.
-            broken = sum(1 for combo in product(AAs_i, AAs_j) if combo
-                         not in parental)
-            self.E_matrix[i, j] = broken / (len(AAs_i)**2)
-
-    def block_energy(self, start: int, end: int) -> float:
-        """Calculate the average SCHEMA energy of a block.
-
-        This is Endelman et al. 2004 eq 6.
-
-        Args:
-            start: Index of the first residue in the block.
-            end: Index of the first residue in the next block. Last residue in
-                the current block is at end-1.
-
-        Returns:
-            Average SCHEMA energy of block [start, end].
-        """
-        energy = self.E_matrix[start:end, end:].sum()
-        return energy
-
-    def increment_block_energy(self, start: int, new_end: int) -> float:
-        """Difference in average SCHEMA energy when block size is incremented.
-
-        This is equivalent to
-            block_energy(start, new_end) - block_energy(start, new_end-1).
-
-        This function is faster than separate block_energy calculations.
-        Therefore, you can calculate the energy for the first node in the
-        graph using block_energy, then calculate the subsequent node energies
-        using this function.
-
-        Args:
-            start: Index of the first residue in the block.
-            end: Index of the first residue in the next block, after the
-                current block size is incremented.
-
-        Returns:
-            Difference in average SCHEMA energy between block [start, new_end]
-                and block [start, new_end-1].
-        """
-        old_end = new_end - 1
-        neg = self.E_matrix[start:old_end, old_end].sum()
-        pos = self.E_matrix[old_end, new_end:].sum()
-        return pos - neg
 
 
 class RASPP:
@@ -185,8 +84,18 @@ class RASPP:
             energy_func = energy_func(parent_aln)
 
         # Calculate all crossover sites valid for Golden Gate Assembly.
-        self.breakpoints = _calculate_breakpoints(parent_aln, codon_options,
-                                                  start_overhang, end_overhang)
+        self.breakpoints, self._bp_to_group = _calculate_breakpoints(
+            parent_aln, codon_options, start_overhang, end_overhang)
+
+        # Cache used for redundant <M> calculations. Certain adjacent
+        # breakpoints will have the same <M>, e.g. if there is only one amino
+        # acid in the alignment at each of the two breakpoint positions. Use
+        # the self._bp_to_group map to convert a library's breakpoints to the
+        # nonredundant breakpoint group indices, which will be the keys to
+        # self._bp_group_M_cache.
+        self._bp_group_M_cache = {}
+
+        self.pa = parent_aln
 
         # Build RASPP graph nodes.
         self.columns = [[_Node(0, 0, [start_overhang])]]
@@ -225,11 +134,19 @@ class RASPP:
                  in combinations(valid_bps, len(self.columns)-1)}
         return bps_e
 
-    def min_bps(self) -> tuple[tuple[int], float]:
-        """Find the set of breakpoints with minimum energy.
+    def min_bps(
+        self,
+        min_block_len: Optional[int] = None,
+        max_block_len: Optional[int] = None
+    ) -> 'Library':
+        """Find the set of breakpoints with minimum energy."""
+        n = len(self.columns) - 1  # number of breakpoints
+        N = sorted(self.breakpoints)[-1]  # length of sequences
+        if min_block_len is None:
+            min_block_len = 0
+        if max_block_len is None:
+            max_block_len = N
 
-        TODO: Add limits. Will make min/maxBL traversal easier. (maybe?)
-        """
         col_iter = iter(self.columns)
 
         curr_col = next(col_iter)
@@ -237,54 +154,175 @@ class RASPP:
 
         for col in col_iter:
             for node in col:
-                print(node.col, node.index)
                 min_lib = Library(1000000.0, {})  # large number
                 for edge in node.in_edges:
+                    block_len = node.index - edge.in_node.index
+
+                    # doesn't fit block len requirements
+                    if not min_block_len <= block_len <= max_block_len:
+                        continue
+                    if not hasattr(edge.in_node, '_min_lib'):
+                        continue
+                    if node.col == n:
+                        n_block_len = N - node.index
+                        if not min_block_len <= n_block_len <= max_block_len:
+                            continue
                     in_lib = edge.in_node._min_lib
                     new_lib = in_lib.expand(edge.e_diff, node.breakpoint)
-                    print('pos', edge.in_node.index)
                     if new_lib.energy < min_lib.energy:
-                        print('new set', edge.in_node.index)
                         min_lib = new_lib
-                assert min_lib.breakpoints  # make sure it's been set
-                node._min_lib = min_lib
+                if min_lib:
+                    node._min_lib = min_lib
 
-        best_node = min(self.columns[-1], key=lambda x: x._min_lib.energy)
-        return best_node._min_lib
+        candidate_libs = [node._min_lib for node in self.columns[-1]
+                          if hasattr(node, '_min_lib')]
+        if not candidate_libs:
+            raise LibrariesNotFoundError
+        return_lib = min(candidate_libs, key=lambda lib: lib.energy)
+        if return_lib.breakpoints:
+            # add last breakpoint
+            last_bp = {N: self.breakpoints[N]}
+            return_lib = return_lib.expand(0.0, last_bp)
+            return return_lib
+        raise LibrariesNotFoundError
 
-    def all_libraries(self):
-        """DFS through graph."""
+    def min_bps_refactor(
+        self,
+        min_block_len: Optional[int] = None,
+        max_block_len: Optional[int] = None
+    ) -> 'Library':
+        """Find the set of breakpoints with minimum energy."""
+        n = len(self.columns) - 1  # number of breakpoints
+        N = sorted(self.breakpoints)[-1]  # length of sequences
+        if min_block_len is None:
+            min_block_len = 0
+        if max_block_len is None:
+            max_block_len = N
+
+        first_node = self.columns[0][0]
+        next_stack = {first_node.index: (first_node,
+                                         Library(0.0, first_node.breakpoint))}
+
+        while next_stack:
+            curr_stack = list(next_stack.values())
+
+            if curr_stack[0][0].col == n:
+                break
+            next_stack = {}
+
+            # iterate over every node
+            for curr_node, curr_lib in curr_stack:
+                # iterate over possible edges
+                for edge in curr_node.out_edges.values():
+
+                    # check that block is correct size
+                    next_block_len = edge.out_node.index - curr_node.index
+                    if not min_block_len <= next_block_len <= max_block_len:
+                        continue
+
+                    new_node = edge.out_node
+                    node_lib = next_stack.get(new_node.index)
+                    if node_lib is None or curr_lib.energy + edge.e_diff \
+                       < node_lib[1].energy:
+                        new_lib = curr_lib.expand(edge.e_diff,
+                                                  new_node.breakpoint)
+                        next_stack[new_node.index] = (new_node, new_lib)
+
+        candidate_libs = [lib for node, lib in curr_stack
+                          if min_block_len <= N - node.index <= max_block_len]
+        if not candidate_libs:
+            raise LibrariesNotFoundError
+        return_lib = min(candidate_libs, key=lambda lib: lib.energy)
+        if return_lib.breakpoints:
+            # add last breakpoint
+            last_bp = {N: self.breakpoints[N]}
+            return_lib = return_lib.expand(0.0, last_bp)
+            return return_lib
+        raise LibrariesNotFoundError
+
+    def vary_m_proxy(self, L_min, L_max):
+        """Choose E-optimal libraries by varying block length as an M proxy.
+
+        TODO: Erase/refactor to get rid of old/naive min_bps() and
+        calc_average_m().
+        """
+        chosen_libs = []
+
+        # TODO: Can probably do problem reduction for each min_block_len
+        # iteration. E.g. For a given min_block_len iteration, iterating
+        # through max_block_len backwards allows us to say the most recently
+        # found library is the minimum E until its max_block_len is greater
+        # max_block_len.
+        # TODO: DOUBLE CHECK THIS
+        for min_block_len in range(L_min, L_max):
+            # for max_block_len in range(min_block_len+1, L_max+1):
+            curr_best = None
+            for max_block_len in range(L_max, min_block_len, -1):
+                print(min_block_len, max_block_len, '\r', end='')
+                if curr_best is not None:
+                    if curr_best.max_block_len <= max_block_len:
+                        continue
+                    else:
+                        curr_best = None
+                try:
+                    # TODO: Pick one of these options. Refactor is faster(?),
+                    # but neither gives the right answers.
+                    # lib = self.min_bps(min_block_len, max_block_len)
+
+                    lib = self.min_bps_refactor(min_block_len, max_block_len)
+                    curr_best = lib
+
+                    if lib not in chosen_libs:
+                        lib.calc_average_m(self.pa, self._bp_group_map,
+                                           self._bp_group_M_cache)
+                        chosen_libs.append(lib)
+                except LibrariesNotFoundError:
+                    pass
+
+        return chosen_libs
+
+    def all_libraries(
+        self,
+        min_block_len: Optional[int] = None,
+        max_block_len: Optional[int] = None
+    ) -> list['Library']:
+        """Get all possible libraries with depth-first graph traversal."""
         libs = []
-        n = len(self.columns) - 1
+        n = len(self.columns) - 1  # number of breakpoints
+        N = sorted(self.breakpoints)[-1]  # length of sequences
+
+        if min_block_len is None:
+            min_block_len = 0
+        if max_block_len is None:
+            max_block_len = N
 
         first_node = self.columns[0][0]
         stack = [(first_node, Library(0.0, first_node.breakpoint))]
         while stack:
             curr_node, curr_lib = stack.pop()
             if curr_node.col == n:
-                # TODO: Only allow libraries that end at N? Bigger problem
-                # than just this method.
-                libs.append(curr_lib)
+                next_block_len = N - curr_node.index
+                if min_block_len <= next_block_len <= max_block_len:
+                    last_bp = {N: self.breakpoints[N]}
+                    curr_lib = curr_lib.expand(0.0, last_bp)
+                    curr_lib.calc_average_m(self.pa, self.bp_group_map)
+                    libs.append(curr_lib)
                 continue
             for edge in reversed(curr_node.out_edges.values()):
-                new_node = edge.out_node
-                new_lib = curr_lib.expand(edge.e_diff, new_node.breakpoint)
-                stack.append((new_node, new_lib))
+                next_block_len = edge.out_node.index - curr_node.index
+                if min_block_len <= next_block_len <= max_block_len:
+                    new_node = edge.out_node
+                    new_lib = curr_lib.expand(edge.e_diff, new_node.breakpoint)
+                    stack.append((new_node, new_lib))
+        if not libs:
+            msg = f'No libraries found with min_block_len={min_block_len}' \
+                  f' and max_block_len={max_block_len}.'
+            raise LibrariesNotFoundError(msg)
         return libs
 
 
-@dataclass(repr=False)
-class Library:
-    energy: float
-    breakpoints: dict[int, list[tuple[int, str]]] = field(default_factory=dict)
-
-    def expand(self, e_diff: float, new_bp: dict[int, list[tuple[int, str]]]):
-        new_e = self.energy + e_diff
-        new_bps = self.breakpoints | new_bp
-        return type(self)(new_e, new_bps)
-
-    def __repr__(self):
-        return f'Library({self.energy}, {list(self.breakpoints.keys())})'
+class LibrariesNotFoundError(Exception):
+    pass
 
 
 def _get_valid_patterns(
@@ -369,7 +407,7 @@ def _calculate_breakpoints(
     position of the k-1th, kth, and k+1th breakpoints be b_k_1, b_k, b_k__1,
     respectively. Then for parent sequence p, the block before the breakpoint
     is p[b_k_1:b_k] and the block after is p[b_k:b_k__1]. Valid breakpoints
-    contain candidate overhangs, defined next.
+    contain candidate overhangs, defined below.
 
     Overhangs are the DNA sticky ends used in a Golden Gate reaction. In this
     module, each overhang consists of a positional shift and DNA sequence. The
@@ -383,6 +421,13 @@ def _calculate_breakpoints(
         (0, 'ATGA'), (1, 'TGAC'), (2, 'GACC'). This breakpoint will be
         represented in the breakpoints dictionary as
         {b_k: [(0, 'ATGA'), (1, 'TGAC'), (2, 'GACC')]}.
+
+    Certain adjacent breakpoints will result in the same <M>, e.g. if alignment
+    positions i and i+1 only consist of {'A'} and {'C'} respectively, the
+    libraries of breakpoints (..., i, ...) and (..., i+1, ...) will have the
+    same <M> if all other breakpoints are the same. Therefore, this function
+    groups the redundant breakpoints and returns a mapping from the original
+    breakpoint index to the nonredundant group index.
 
     Args:
         parent_aln: parent alignment for breakpoint calculation.
@@ -398,7 +443,10 @@ def _calculate_breakpoints(
             into calculations if None.
 
     Returns:
-        Mapping from breakpoint position to valid breakpoint overhangs.
+        breakpoints: Mapping from breakpoint position to valid breakpoint
+            overhangs.
+        bp_to_group: Mapping from breakpoint index to index of nonredundant
+            breakpoint groups.
     """
 
     aln_seqs = [str(sr.seq) for sr in parent_aln.aligned_sequences]
@@ -408,7 +456,7 @@ def _calculate_breakpoints(
     assert all(aa in codon_options for aa in aa_alphabet)
 
     # Amino acids at each position.
-    aln_sets = zip(*aln_seqs)
+    aln_sets = list(zip(*aln_seqs))
 
     # Sets of codons for each amino acid at an alignment position.
     aln_cdns = [{codon_options[aa] for aa in pos_aas} for pos_aas in aln_sets]
@@ -417,11 +465,15 @@ def _calculate_breakpoints(
 
     if start_overhang is not None:
         breakpoints[0] = [start_overhang]
+        internal_bp_start = 1
+    else:
+        internal_bp_start = 0
 
     # Search possible Golden Gate sites by iterating over adjacent codons.
     for bp, (cdns1, cdns2) in enumerate(zip(aln_cdns, aln_cdns[1:]), 1):
 
         # Can't do Golden Gate at a site with gaps.
+        # TODO: Do further Golden Gate validation.
         if '---' in cdns1 or '---' in cdns2:
             continue
 
@@ -442,16 +494,42 @@ def _calculate_breakpoints(
                 overhangs.append(oh)
 
         if not overhangs:
+            # No valid overhangs, skip.
             continue
 
         breakpoints[bp] = overhangs
 
     if end_overhang is not None:
         breakpoints[len(aln_cdns)] = [end_overhang]
+        internal_bp_end = len(breakpoints) - 1
+    else:
+        internal_bp_end = len(breakpoints)
 
     # TODO: Check if there's enough breakpoints for the run params.
+    # Group the redundant breakpoints.
+    breakpoint_groups = []
 
-    return breakpoints
+    # Iterate over the internal (not added start or end) breakpoints.
+    bps = iter(sorted(breakpoints)[internal_bp_start:internal_bp_end])
+    curr_bps = [next(bps)]
+    for bp in bps:
+        # If bp is not adjacent to last or has more than one amino acid, it
+        # belongs to a new group.
+        if bp != curr_bps[-1] + 1 or len(set(aln_sets[bp-1])) != 1:
+            breakpoint_groups.append(curr_bps)
+            curr_bps = [bp]
+        else:
+            curr_bps.append(bp)
+    breakpoint_groups.append(curr_bps)
+
+    # Get the mapping from each breakpoint index to the breakpoint's group
+    # index.
+    bp_to_group = {}
+    for group_index, bp_group in enumerate(breakpoint_groups):
+        for bp in bp_group:
+            bp_to_group[bp] = group_index
+
+    return breakpoints, bp_to_group
 
 
 class _Edge(NamedTuple):
@@ -550,39 +628,8 @@ class _Node:
         add_edge(e, curr_node)
 
 
-def average_m(pa: ParentAlignment, bps: tuple[int]):
-    """Calculate the average number of mutations in library."""
-    def calc_muts(seq1, seq2):
-        return sum(1 for a1, a2 in zip(seq1, seq2) if a1 != a2)
-
-    p_seqs = [str(sr.seq) for sr in pa.aligned_sequences]
-
-    p = len(p_seqs)  # number of parents
-    N = len(p_seqs[0])  # number of amino acids in alignment
-
-    # bps must be (0, ..., N).
-    if bps[0] != 0:
-        bps = (0,) + bps
-    if bps[-1] != N:
-        bps += (N,)
-
-    n = len(bps) - 2  # number of crossovers. number of blocks is n+1
-
-    # Construct all library chimeras to calculate average mutations.
-    total_muts = 0
-    for i, block_parents in enumerate(product(p_seqs, repeat=n+1)):
-        # Construct chimera from parent blocks.
-        block_seqs = [blkpar[start: end] for blkpar, start, end
-                      in zip(block_parents, bps, bps[1:])]
-        chimera = ''.join(block_seqs)
-
-        # Chimera m is the number of mutations from the closest parent.
-        total_muts += min(calc_muts(chimera, parent) for parent in p_seqs)
-
-    return total_muts / p**(n+1)
-
-
 if __name__ == '__main__':
+    '''
     loc = '../tests/bgl3_sample/truncated/'
     pa = ParentAlignment.from_fasta(loc+'trunc.fasta')
     pdb = PDBStructure.from_pdb_file(loc+'trunc.pdb')
@@ -590,15 +637,93 @@ if __name__ == '__main__':
     loc = '../tests/bgl3_sample/'
     pa = ParentAlignment.from_fasta(loc+'bgl3_sequences.fasta')
     pdb = PDBStructure.from_pdb_file(loc+'1GNX.pdb')
-    '''
     pa.pdb_structure = pdb
 
     vector_overhangs = [(0, 'TATG'), (3, 'TGAG')]
-    n = 2
+    n = 7
     raspp = RASPP(pa, n, vector_overhangs[0], vector_overhangs[1])
-    all_libs = raspp.all_libraries()
-    for lib in all_libs:
-        print(lib)
+
+    seqs = [str(s.seq) for s in pa.aligned_sequences]
+    aln_sets = [set(a) for a in zip(*seqs)]
+
+    '''
+    breakpoint_groups = []
+    bps = iter(sorted(raspp.breakpoints)[1:-1])
+    curr_bps = [next(bps)]
+    for bp in bps:
+        print(bp, aln_sets[bp-1], aln_sets[bp])
+        if bp != curr_bps[-1] + 1 or len(aln_sets[bp-1]) != 1:
+            breakpoint_groups.append(curr_bps)
+            curr_bps = [bp]
+        else:
+            curr_bps.append(bp)
+    breakpoint_groups.append(curr_bps)
+    print(breakpoint_groups)
+    '''
+
+    minBL, maxBL = 70, 105
+    # minBL, maxBL = 30, 105
+    import time
+
+    # varied
+    s = time.time()
+    libs = raspp.vary_m_proxy(minBL, maxBL)
+    '''
+    print('\nvary_m_proxy')
+    for rl in sorted(libs, key=lambda x: x.energy):
+        print(rl.energy, list(rl.breakpoints), rl.min_block_len,
+              rl.max_block_len, rl.average_m)
+    '''
+    print(time.time() - s)
+
+    # all
+    print('\nall_libraries')
+    s = time.time()
+    all_libs = raspp.all_libraries(minBL, maxBL)
+    print('here')
+    print(len(all_libs))
+    for i, rl in enumerate(sorted(all_libs, key=lambda x: x.energy)):
+        print(i, rl.energy, list(rl.breakpoints), rl.min_block_len,
+              rl.max_block_len, rl.average_m)
+    print(time.time() - s)
+    1/0
+
+    import matplotlib.pyplot as plt
+    lib_me = set((rl.average_m, rl.energy) for rl in libs)
+    alib_me = set((rl.average_m, rl.energy) for rl in all_libs)
+    lib_plot = lib_me - alib_me
+    alib_plot = alib_me - lib_me
+    both_plot = lib_me & alib_me
+    print(lib_plot)
+    print(alib_plot)
+    print(both_plot)
+
+    all_breakpoints = [sorted(rl.breakpoints) for rl in all_libs]
+    for rl in libs:
+        if sorted(rl.breakpoints) not in all_breakpoints:
+            print(sorted(rl.breakpoints))
+
+    if lib_plot:
+        plt.scatter(*zip(*lib_plot), label='varied')
+    if alib_plot:
+        plt.scatter(*zip(*alib_plot), label='all')
+    plt.scatter(*zip(*both_plot), label='both')
+    plt.xlabel('<M>')
+    plt.ylabel('<E>')
+    plt.legend()
+    plt.show()
+
+    """
+    rl = min(all_libs, key=lambda x: x.energy)
+    print(rl)
+    print(rl.min_block_len, rl.max_block_len)
+    """
+
+    '''
+    for minBL, maxBL in [(1, 8), (2, 5), (None, None)]:
+        all_libs = raspp.all_libraries(minBL, maxBL)
+        print(minBL, maxBL, [sorted(lib.breakpoints) for lib in all_libs])
+    '''
     '''
     raspp.eval_all_bps()
     raspp.min_bps()

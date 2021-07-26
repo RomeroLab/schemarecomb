@@ -13,6 +13,7 @@ should generally not be an issue, but you may get different results by swapping
 the order of the sequences.
 """
 
+from collections.abc import Sequence
 from itertools import combinations
 import json
 import os
@@ -27,7 +28,7 @@ from .pdb_structure import PDBStructure
 from .utils import _calc_identity
 
 
-class ParentAlignment:
+class ParentAlignment(Sequence):
     """Alignment of parental protein sequences for GGSR.
 
     Public attributes:
@@ -98,6 +99,15 @@ class ParentAlignment:
     ...     aln_json2 = f.read()
     >>> p_aln2 = ParentAlignment.from_json(aln_json2)
     >>> # p_aln and p_aln2 should be the same
+
+    You can also use the normal sequence operations on the instance directly,
+    provided that the instance is aligned. These operations apply to the
+    amino acids at each alignment position. For example, this will print
+    out a list of amino acids at each position in the alignment:
+    >>> from ggsr.parent_alignment import ParentAlignent
+    >>> p_aln = ParentAlignment.from_fasta('P450_AA_sequences.fasta')
+    >>> for amino_acids in p_aln:
+    >>>     print(amino_acids)
     """
 
     def __init__(self, sequences: list[SeqRecord.SeqRecord],
@@ -116,6 +126,7 @@ class ParentAlignment:
             raise ValueError('sequences must not be empty.')
         self.auto_align = auto_align
         self.aligned_sequences = None  # not needed here, included for clarity
+        self._amino_acids = None
         self.sequences = sequences  # must be set here since it affects others
         self.pdb_structure = pdb_structure  # relies on aligned_sequences
 
@@ -132,9 +143,33 @@ class ParentAlignment:
                 if hasattr(self, 'pdb_structure') and \
                    self.pdb_structure is not None:
                     self.pdb_structure.is_renumbered = False
+        elif name == 'aligned_sequences':
+            if value is None:
+                self._amino_acids = None
+            else:
+                aln_seqs = [str(sr.seq) for sr in self.aligned_sequences]
+                self._amino_acids = tuple(zip(*aln_seqs))
         elif name == 'pdb_structure' and value is not None and self.auto_align:
             # Want to renumber pdb if aligned.
             self.pdb_structure.renumber(self.aligned_sequences[0])
+
+    def __getitem__(self, key):
+        """Amino acids at position key in the alignment.
+
+        Raises AttributeError if the instance has not been aligned.
+        """
+        if self._amino_acids is None:
+            raise AttributeError('ParentAlignment is not aligned yet.')
+        return self._amino_acids[key]
+
+    def __len__(self):
+        """Number of amino acid positions in the alignment.
+
+        Raises AttributeError if the instance has not been aligned.
+        """
+        if self._amino_acids is None:
+            raise AttributeError('ParentAlignment is not aligned yet.')
+        return len(self._amino_acids)
 
     @classmethod
     def from_fasta(cls, fasta_fn: str, **kwargs) -> 'ParentAlignment':

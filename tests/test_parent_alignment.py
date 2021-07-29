@@ -3,9 +3,10 @@ from itertools import combinations
 from Bio import SeqIO
 import pytest
 
+from ggsr import ParentAlignment
+from ggsr import PDBStructure
 from ggsr import parent_alignment
 from ggsr.parent_alignment import pdb_structure
-from ggsr.parent_alignment.blast_query import blast_query
 from ggsr.parent_alignment.utils import iden_diff
 
 
@@ -48,12 +49,10 @@ def mock_efetch(db, id, rettype):
     raise ValueError('Handling for this request is not implemented.')
 
 
-ParentAlignment = parent_alignment.ParentAlignment
-PDBStructure = pdb_structure.PDBStructure
-parent_alignment.blast_query.urlopen = mock_urlopen
-parent_alignment.blast_query.Entrez.efetch = mock_efetch
+parent_alignment.blast.urlopen = mock_urlopen
+parent_alignment.blast.Entrez.efetch = mock_efetch
 pdb_structure.urlopen = mock_urlopen
-pdb_structure.blast_query.urlopen = mock_urlopen
+pdb_structure.query_blast.urlopen = mock_urlopen
 
 
 def check_aligned_sequences(pa, intended_sequences_len):
@@ -179,7 +178,7 @@ def test_choose_candidates():
     # Test 3: choose from BLAST query, 0.6 identity.
     query_sr = pa.sequences[0]
     query_seq = str(query_sr.seq)
-    cands = list(blast_query(query_seq))
+    cands = list(parent_alignment.query_blast(query_seq))
 
     cand_diffs = []
     for cand in cands:

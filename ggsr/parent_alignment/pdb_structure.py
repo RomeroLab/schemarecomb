@@ -67,7 +67,7 @@ from Bio.SeqUtils import seq1
 import numpy as np
 from scipy.spatial import distance
 
-from .blast_query import blast_query
+from .blast import query_blast
 from .utils import _calc_identity
 
 
@@ -338,7 +338,7 @@ class PDBStructure:
             p1_aligned = str(p1_aligned.seq)
         if query_str != p1_aligned.replace('-', ''):
             raise ValueError('parent_seqs[0] does not match p1_aligned.')
-        pdb_srs = list(blast_query(query_str, 'pdbaa', 100))
+        pdb_srs = list(query_blast(query_str, 'pdbaa', 100))
 
         # Find the PDB struct with largest minimum identity to the parents.
         best_id = None  # track the best sequence

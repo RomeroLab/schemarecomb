@@ -15,7 +15,7 @@ from Bio.Blast.NCBIWWW import _parse_qblast_ref_page
 NCBI_BLAST_URL = "https://blast.ncbi.nlm.nih.gov/Blast.cgi"
 
 
-def blast_query(query_seq: str, database: str = 'refseq_protein',
+def query_blast(query_seq: str, database: str = 'refseq_protein',
                 maximum_hits: int = 10000) -> Generator[SeqRecord.SeqRecord]:
     """Gets sequences from query_seq BLAST hits.
 

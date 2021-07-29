@@ -22,8 +22,8 @@ from typing import Optional, Union
 
 from Bio import Seq, SeqIO, SeqRecord
 
-from .blast_query import blast_query
-from .choose_candidates import choose_candidates
+from .blast import query_blast
+from .parent_candidates import choose_candidates
 from .pdb_structure import PDBStructure
 from .utils import _calc_identity
 
@@ -236,7 +236,7 @@ class ParentAlignment(Sequence):
 
         query_sr = self.sequences[0]
         query_seq = str(query_sr.seq)
-        candidate_seqs = list(blast_query(query_seq))
+        candidate_seqs = list(query_blast(query_seq))
         # blast_query gives iter but list should be small enough
 
         self.add_from_candidates(candidate_seqs, num_final_sequences,

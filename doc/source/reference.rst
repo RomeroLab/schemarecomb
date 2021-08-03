@@ -5,4 +5,10 @@
 Reference Manual
 ****************
 
-Coming soon.
+.. currentmodule:: ggsr
+
+.. autosummary::
+   :toctree: generated/
+   :template: class.rst
+
+   ggsr.ParentAlignment

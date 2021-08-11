@@ -1,0 +1,6 @@
+#!/usr/bin/env python
+
+out = '''
+This is a place holder statement. It will be replaced when the ggsr (or
+ ggrecom) cli is implemented.'''.replace('\n', '')
+print(out)

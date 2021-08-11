@@ -2,3 +2,4 @@
 poetry.lock
 doc/build
 doc/source/generated/
+dist

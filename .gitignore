@@ -1,5 +1,6 @@
 *__pycache__
 poetry.lock
-doc/build
+doc/build/
 doc/source/generated/
-dist
+dist/
+.mypy_cache/

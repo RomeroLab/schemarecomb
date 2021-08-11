@@ -141,20 +141,27 @@ class ParentAlignment(Sequence):
 
         self._auto_align = auto_align
         self._prealigned = prealigned
-        self.aligned_sequences = None  # not needed here, included for clarity
-        self._amino_acids = None
+        self.aligned_sequences: list[SeqRecord]
         self.sequences = sequences  # must be set here since it affects others
-        self.pdb_structure = pdb_structure  # relies on aligned_sequences
+        if pdb_structure is not None:
+            self.pdb_structure = pdb_structure  # relies on aligned_sequences
 
     def __setattr__(self, name, value) -> None:
         """Set aligned_sequences according to auto_align if sequences reset."""
+        # Prealigned implies immutability.  The exception is when
+        # aligned_sequences is None, which means self is being
+        # initialized.
+        if self._prealigned and self.aligned_sequences is not None:
+            raise ValueError('aligned_sequences cannot be changed if '
+                             'prealigned.')
+
         super().__setattr__(name, value)
 
         if name == 'sequences':
             # Prealigned implies immutability.  The exception is when
             # aligned_sequences is None, which means self is being
             # initialized.
-            if self._prealigned and self.aligned_sequences is not None:
+            if self._prealigned and hasattr(self, 'aligned_sequences'):
                 raise ValueError('sequences cannot be changed if prealigned.')
 
             # If sequences is changed, want to modify aligned_sequences.
@@ -166,29 +173,22 @@ class ParentAlignment(Sequence):
                 self.aligned_sequences = self.sequences
             else:
                 # Reset aligned_sequences and wait for align() call.
-                self.aligned_sequences = None
+                del self.aligned_sequences
 
         elif name == 'aligned_sequences':
-            # Prealigned implies immutability.  The exception is when
-            # aligned_sequences is None, which means self is being
-            # initialized.
-            if self._prealigned and self.aligned_sequences is not None:
-                raise ValueError('aligned_sequences cannot be changed if '
-                                 'prealigned.')
+            aln_seqs = [str(sr.seq) for sr in self.aligned_sequences]
+            self._amino_acids = tuple(zip(*aln_seqs))
+            if hasattr(self, 'pdb_structure') and \
+               self.pdb_structure is not None:
+                self.pdb_structure.renumber(self.aligned_sequences[0])
 
-            if value is None:
-                self._amino_acids = None
-            else:
-                aln_seqs = [str(sr.seq) for sr in self.aligned_sequences]
-                self._amino_acids = tuple(zip(*aln_seqs))
-                if hasattr(self, 'pdb_structure') and \
-                   self.pdb_structure is not None:
-                    self.pdb_structure.renumber(self.aligned_sequences[0])
-
-        elif name == 'pdb_structure' and value is not None \
-                and self.aligned_sequences is not None:
+        elif name == 'pdb_structure' and hasattr(self, 'aligned_sequences'):
             # Want to renumber pdb if aligned.
             self.pdb_structure.renumber(self.aligned_sequences[0])
+
+    def __delattr__(self, name):
+        if name == 'aligned_sequences':
+            del self._amino_acids
 
     def __getitem__(self, key):
         """Amino acids at position key in the alignment.
@@ -357,13 +357,14 @@ class ParentAlignment(Sequence):
             aligned = True
 
         # TODO: probably add a version?
-        out_dict = {'seq_records': [], 'aligned': aligned,
-                    'auto_align': self._auto_align}
+        seq_records = []
         # important to preserve order of sequences
         for sr in seq_records:
             sr_dict = {'seq': str(sr.seq), 'id': sr.id, 'name': sr.name,
                        'description': sr.description}
-            out_dict['seq_records'].append(sr_dict)
+            seq_records.append(sr_dict)
+        out_dict = {'seq_records': seq_records, 'aligned': aligned,
+                    'auto_align': self._auto_align}
         return json.dumps(out_dict)
 
     @classmethod
@@ -398,7 +399,7 @@ class ParentAlignment(Sequence):
         new_instance._auto_align = in_dict['auto_align']
         return new_instance
 
-    def _check_identity(self, desired_identity: float) -> float:
+    def _check_identity(self, desired_identity: Optional[float]) -> float:
         """Validate the input desired_identity, set to default if None."""
         if desired_identity is None:
             # Follow default behavior: 0.7 if there's only one sequence.

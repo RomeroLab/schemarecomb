@@ -57,7 +57,7 @@ class RASPP:
             n: int,
             start_overhang: Optional[tuple[int, str]] = None,
             end_overhang: Optional[tuple[int, str]] = None,
-            codon_options: dict[str: list[str]] = AA_C31,
+            codon_options: dict[str, list[str]] = AA_C31,
             energy_func: Union[EnergyFunction, type[EnergyFunction]] = SCHEMA
     ):
         """Init a RASPP graph.

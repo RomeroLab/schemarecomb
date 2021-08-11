@@ -10,7 +10,7 @@ parent alignment is recombined into chimeras.
 from functools import cached_property
 from itertools import combinations
 
-from ggsr.parent_alignment import ParentAlignment
+from ggrecomb.parent_alignment import ParentAlignment
 
 
 # @dataclass(repr=False)
@@ -167,31 +167,3 @@ class RecombinantLibrary:
             group_bp_cache[bp_groups] = M
 
         return M
-
-    '''
-    def calc_average_m_rust(self, pa: ParentAlignment, bp_to_group):
-        import ggsr_rust
-
-        def sequence_mutations(seq1, seq2):
-            return sum(1 for a1, a2 in zip(seq1, seq2) if a1 != a2)
-
-        seqs = [str(sr.seq) for sr in pa.aligned_sequences]
-        blmuts = []
-        bps = sorted(self.breakpoints)
-        for bp1, bp2 in zip(bps, bps[1:]):
-            # muts = {i: {i: 0} for i, _ in enumerate(seqs)}
-            muts = np.empty((len(seqs), len(seqs)), dtype=int)
-            np.fill_diagonal(muts, 0)
-            for (i, s1), (j, s2) in combinations(enumerate(seqs), 2):
-                s1_slice = s1[bp1:bp2]
-                s2_slice = s2[bp1:bp2]
-                m = sequence_mutations(s1_slice, s2_slice)
-                muts[i, j] = m
-                muts[j, i] = m
-            blmuts.append(muts.tolist())
-
-        M = ggsr_rust.calc_average_m(blmuts)
-        self._m = M
-
-        return M
-    '''

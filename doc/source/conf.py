@@ -17,7 +17,7 @@
 
 # -- Project information -----------------------------------------------------
 
-project = 'ggsr'
+project = 'ggrecomb'
 copyright = '2021, Bennett Bremer'
 author = 'Bennett Bremer'
 

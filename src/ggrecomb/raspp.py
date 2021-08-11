@@ -12,10 +12,10 @@ from dataclasses import dataclass, field
 from itertools import product, combinations
 from typing import NamedTuple, Optional, Union
 
-from ggsr.energy_functions import EnergyFunction, SCHEMA
-from ggsr.library import RecombinantLibrary
-from ggsr.parent_alignment import ParentAlignment
-from ggsr.parent_alignment.pdb_structure import PDBStructure
+from ggrecomb.energy_functions import EnergyFunction, SCHEMA
+from ggrecomb.library import RecombinantLibrary
+from ggrecomb.parent_alignment import ParentAlignment
+from ggrecomb.parent_alignment.pdb_structure import PDBStructure
 
 
 # List of optimal codons for E. coli.

@@ -2,7 +2,7 @@ from itertools import product
 
 import numpy as np
 
-from ggsr.parent_alignment import ParentAlignment
+from ggrecomb.parent_alignment import ParentAlignment
 
 
 class EnergyFunction:

@@ -5,10 +5,10 @@
 Reference Manual
 ****************
 
-.. currentmodule:: ggsr
+.. currentmodule:: ggrecomb
 
 .. autosummary::
    :toctree: generated/
    :template: class.rst
 
-   ggsr.ParentAlignment
+   ggrecomb.ParentAlignment

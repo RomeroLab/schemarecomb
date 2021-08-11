@@ -1,0 +1,6 @@
+#!/usr/bin/env python
+
+out = '''
+This is a place holder statement. It will be replaced when the ggrecomb CLI is
+ implemented.'''.replace('\n', '')
+print(out)

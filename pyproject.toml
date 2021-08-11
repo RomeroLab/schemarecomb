@@ -1,7 +1,7 @@
 [tool.poetry]
-name = 'ggsr'
+name = 'ggrecomb'
 version = '0.0.1'
-description = 'Designing recombinant protein libraries.'
+description = 'Design recombinant protein libraries for Golden Gate Assembly.'
 authors = ['Bennett Bremer <bennettjamesbremer@gmail.com>']
 
 [tool.poetry.dependencies]
@@ -14,7 +14,7 @@ pytest = '^6.2.4'
 sphinx = '^4.0.1'
 
 [tool.poetry.scripts]
-ggsr = {reference = "bin/ggsr", type="file"}
+ggrecom = {reference = "bin/ggrecom", type="file"}
 
 [build-system]
 requires = ["poetry-core>=1.1.0a5"]

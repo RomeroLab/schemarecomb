@@ -3,8 +3,7 @@
 """Alignments of parental sequences for combinatorial protein libraries.
 
 This module provides the ParentAlignment class, which represents an alignment
-of "parent" protein sequences used in Golden Gate SCHEMA-RASPPi (GGSR) library
-creation.
+of "parent" protein sequences used in ggrecomb library creation.
 
 Note that the first sequence (ParentAlignment.sequences[0]) has
 special importance, as it's used to find additional parental sequences and PDB
@@ -26,8 +25,8 @@ from Bio.SeqRecord import SeqRecord
 
 from .blast import query_blast
 from .parent_candidates import choose_candidates
+from .pdb_structure import PDBStructure
 from .utils import _calc_identity
-from ggsr import PDBStructure
 
 
 class ParentAlignment(Sequence):
@@ -37,13 +36,13 @@ class ParentAlignment(Sequence):
     This class sets up the data needed to run recombinant design algorithms,
     e.g. intaking parental sequences, finding additional parents, intaking or
     finding PDB strucutures. Instances of this class are passed into functions
-    further down the ggsr pipeline.
+    further down the ggrecomb pipeline.
 
     Parameters:
-        sequences: Parental amino acid sequences for GGSR calculations. Note
-            that the first sequence (ParentAlignment.sequences[0]) has special
-            importance, as it's used to find additional parental sequences and
-            PDB structures.
+        sequences: Parental amino acid sequences for ggrecomb calculations.
+            Note that the first sequence (ParentAlignment.sequences[0]) has
+            special importance, as it's used to find additional parental
+            sequences and PDB structures.
         auto_align: If True, the align method is called when the sequences
             attribute changes, including upon initialization. If False,
             aligned_sequences is set to None, unless sequences is already
@@ -68,13 +67,13 @@ class ParentAlignment(Sequence):
         with default arguments. This will automatically align the file's
         sequences and the instance will be ready to use downstream:
 
-        >>> from ggsr import ParentAlignent
+        >>> from ggrecomb import ParentAlignent
         >>> p_aln = ParentAlignment.from_fasta('P450_AA_sequences.fasta')
 
         Alternatively, you can use the same procedure and add additional
         sequences with BLAST (might take awhile) by doing:
 
-        >>> from ggsr import ParentAlignent
+        >>> from ggrecomb import ParentAlignent
         >>> p_aln = ParentAlignment.from_fasta('P450_AA_sequences.fasta')
         >>> p_aln.obtain_seqs(num_final_sequences=6, desired_identity=0.65)
 
@@ -82,7 +81,7 @@ class ParentAlignment(Sequence):
         candidate_sequences:
 
         >>> from Bio import SeqIO
-        >>> from ggsr import ParentAlignent
+        >>> from ggrecomb import ParentAlignent
         >>> p_aln = ParentAlignment.from_fasta('P450_AA_sequences.fasta')
         >>> candidate_seqs = list(SeqIO.parse('candidates.fasta', 'fasta'))
         >>> p_aln.add_from_candidates(candidate_sequences=candidate_seqs,
@@ -92,7 +91,7 @@ class ParentAlignment(Sequence):
         Or if you want to build a library from an amino acid sequence stored as
         a string instead:
 
-        >>> from ggsr import ParentAlignent
+        >>> from ggrecomb import ParentAlignent
         >>> sequence = 'MKQHKAMIVALIVICITAVVAALVTRKDLCEVHIRTGQTEVAVF'
         >>> p_aln = from_single(sequence=sequence,
         ...                     name='YP_025292.1',
@@ -101,7 +100,7 @@ class ParentAlignment(Sequence):
 
         You can also save a ParentAlignment as a JSON:
 
-        >>> from ggsr import ParentAlignent
+        >>> from ggrecomb import ParentAlignent
         >>> p_aln = ParentAlignment.from_fasta('P450_AA_sequences.fasta')
         >>> aln_json = p_aln.to_json()
         >>> with open('p_aln.json', 'w') as f:
@@ -118,7 +117,7 @@ class ParentAlignment(Sequence):
         to the amino acids at each alignment position. For example, this will
         print out the parental amino acids at the  first and tenth positions.
 
-        >>> from ggsr import ParentAlignment
+        >>> from ggrecomb import ParentAlignment
         >>> p_aln = ParentAlignment.from_fasta('P450_AA_sequences.fasta')
         >>> print(p_aln[0], p_aln[9])
         ('M', 'M', 'M', 'M', 'M', 'M') ('P', 'A', 'G', 'Y', 'T', 'A')

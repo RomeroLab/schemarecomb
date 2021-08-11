@@ -3,11 +3,11 @@ from itertools import combinations
 from Bio import SeqIO
 import pytest
 
-from ggsr import ParentAlignment
-from ggsr import PDBStructure
-from ggsr import parent_alignment
-from ggsr.parent_alignment import pdb_structure
-from ggsr.parent_alignment.utils import iden_diff
+from ggrecomb import ParentAlignment
+from ggrecomb import PDBStructure
+from ggrecomb import parent_alignment
+from ggrecomb.parent_alignment import pdb_structure
+from ggrecomb.parent_alignment.utils import iden_diff
 
 
 def mock_urlopen(request):

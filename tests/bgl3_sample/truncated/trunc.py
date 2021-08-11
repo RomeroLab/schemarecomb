@@ -2,8 +2,8 @@ import sys
 
 from Bio import SeqIO, SeqRecord
 
-from ggsr.parent_alignment import ParentAlignment
-from ggsr.parent_alignment.pdb_structure import PDBStructure
+from ggrecomb.parent_alignment import ParentAlignment
+from ggrecomb.parent_alignment.pdb_structure import PDBStructure
 
 if len(sys.argv) != 3:
     print('Usage: python trunc.py <seq_len> <num_parents>')

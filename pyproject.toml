@@ -13,8 +13,8 @@ scipy = '^1.6.3'
 pytest = '^6.2.4'
 sphinx = '^4.0.1'
 
-[tool.poetry.scripts]
-ggrecom = {reference = "bin/ggrecom", type="file"}
+# [tool.poetry.scripts]
+# ggrecom = {reference = "bin/ggrecom", type="file"}
 
 [build-system]
 requires = ["poetry-core>=1.1.0a5"]

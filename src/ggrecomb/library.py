@@ -10,7 +10,7 @@ parent alignment is recombined into chimeras.
 from functools import cached_property
 from itertools import combinations
 
-from ggrecomb.parent_alignment import ParentAlignment
+from ggrecomb import ParentAlignment
 
 
 # @dataclass(repr=False)
@@ -21,7 +21,7 @@ class RecombinantLibrary:
         breakpoints: dict[int, list[tuple[int, str]]],
         parent_alignment: ParentAlignment,
         bp_to_group: dict[int, int] = None,
-        group_bp_cache: dict[tuple[int], float] = None,
+        group_bp_cache: dict[tuple[int, ...], float] = None,
     ):
         self.energy = energy
         self.breakpoints = breakpoints

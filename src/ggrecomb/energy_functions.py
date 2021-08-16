@@ -2,11 +2,13 @@ from itertools import product
 
 import numpy as np
 
-from ggrecomb.parent_alignment import ParentAlignment
+from ggrecomb import ParentAlignment
 
 
 class EnergyFunction:
-    pass
+    # TODO: Implement general energy function.
+    def __init__(self, pa: ParentAlignment):
+        raise NotImplementedError
 
 
 class SCHEMA(EnergyFunction):

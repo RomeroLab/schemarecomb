@@ -25,8 +25,8 @@ from Bio.SeqRecord import SeqRecord
 
 from .blast import query_blast
 from .parent_candidates import choose_candidates
-from .pdb_structure import PDBStructure
 from .utils import _calc_identity
+import ggrecomb.parent_alignment.pdb_structure as pdb_s
 
 
 class ParentAlignment(Sequence):
@@ -39,18 +39,16 @@ class ParentAlignment(Sequence):
     further down the ggrecomb pipeline.
 
     Parameters:
-        sequences: Parental amino acid sequences for ggrecomb calculations.
-            Note that the first sequence (ParentAlignment.sequences[0]) has
-            special importance, as it's used to find additional parental
-            sequences and PDB structures.
+        parent_SeqRecords: Parental amino acid sequences for ggrecomb
+            calculations. Note that the first sequence
+            (ParentAlignment.sequences[0]) has special importance, as it's used
+            to find additional parental sequences and PDB structures.
         auto_align: If True, the align method is called when the sequences
-            attribute changes, including upon initialization. If False,
-            aligned_sequences is set to None, unless sequences is already
-            aligned.
-        prealigned: If True, consider input sequences to be aligned upon
-            initialization. The sequences and aligned_sequences are then
-            considered immutable. Cannot be True at the same time as
-            auto_align.
+            attribute changes, including upon initialization.
+        prealigned: If True, input sequences are considered aligned upon
+            initialization. parent_SeqRecords and aligned_sequences are then
+            considered immutable. auto_align and prealigned must not both be
+            True.
         pdb_structure: Protein Data Bank structure that represents the three-
             dimensional structure of the aligned parent sequences.
 
@@ -74,8 +72,8 @@ class ParentAlignment(Sequence):
         sequences with BLAST (might take awhile) by doing:
 
         >>> from ggrecomb import ParentAlignent
-        >>> p_aln = ParentAlignment.from_fasta('P450_AA_sequences.fasta')
         >>> p_aln.obtain_seqs(num_final_sequences=6, desired_identity=0.65)
+        >>> p_aln = ParentAlignment.from_fasta('P450_AA_sequences.fasta')
 
         You can skip the BLAST search if you have a FASTA file of
         candidate_sequences:
@@ -124,62 +122,65 @@ class ParentAlignment(Sequence):
 
     """
 
-    def __init__(self, sequences: list[SeqRecord],
-                 auto_align: bool = True,
-                 prealigned: bool = False,
-                 pdb_structure: PDBStructure = None) -> None:
-        if len(sequences) < 1:
+    def __init__(
+        self,
+        parent_SeqRecords: list[SeqRecord],
+        auto_align: bool = True,
+        prealigned: bool = False,
+        pdb_structure: 'pdb_s.PDBStructure' = None
+    ) -> None:
+        # Input checking.
+        if len(parent_SeqRecords) < 1:
             raise ValueError('sequences must not be empty.')
         if auto_align and prealigned:
             raise ValueError('auto_align and prealigned must not both be '
                              'True.')
         if prealigned:
-            seq_len = len(str(sequences[0].seq))
-            if not all(len(str(sr.seq)) == seq_len for sr in sequences[1:]):
+            seq_len = len(str(parent_SeqRecords[0].seq))
+            if not all(len(str(sr.seq)) == seq_len for sr
+                       in parent_SeqRecords[1:]):
                 raise ValueError('All sequences must be the same length if '
                                  'prealigned.')
 
+        # Attribute static typing.
+        self.aligned_sequences: list[str]
+        self.pdb_structure: 'pdb_s.PDBStructure'
+
         self._auto_align = auto_align
         self._prealigned = prealigned
-        self.aligned_sequences: list[SeqRecord]
-        self.sequences = sequences  # must be set here since it affects others
+        self.parent_SeqRecords = parent_SeqRecords
         if pdb_structure is not None:
-            self.pdb_structure = pdb_structure  # relies on aligned_sequences
+            self.pdb_structure = pdb_structure
 
     def __setattr__(self, name, value) -> None:
-        """Set aligned_sequences according to auto_align if sequences reset."""
-        # Prealigned implies immutability.  The exception is when
-        # aligned_sequences is None, which means self is being
-        # initialized.
-        if self._prealigned and self.aligned_sequences is not None:
-            raise ValueError('aligned_sequences cannot be changed if '
-                             'prealigned.')
-
         super().__setattr__(name, value)
 
-        if name == 'sequences':
+        if name == 'parent_SeqRecords':
             # Prealigned implies immutability.  The exception is when
-            # aligned_sequences is None, which means self is being
-            # initialized.
-            if self._prealigned and hasattr(self, 'aligned_sequences'):
-                raise ValueError('sequences cannot be changed if prealigned.')
-
-            # If sequences is changed, want to modify aligned_sequences.
-            if self._auto_align:
-                self.align()
-            elif self._prealigned:
-                # Prealignment means sequences and aligned_sequences are the
-                # same. This should only happen on initialization.
-                self.aligned_sequences = self.sequences
+            # aligned_sequences is not an attr, which should only happen
+            # on init.
+            if self._prealigned:
+                if hasattr(self, 'aligned_sequences'):
+                    raise ValueError('sequences cannot be changed if '
+                                     'prealigned.')
+                else:
+                    aln_seqs = [str(sr.seq) for sr in value]
+                    self.aligned_sequences = aln_seqs
             else:
-                # Reset aligned_sequences and wait for align() call.
-                del self.aligned_sequences
+                # If sequences is changed, want to modify aligned_sequences.
+                if self._auto_align:
+                    self.align()
+                else:
+                    # Delete aligned_sequences and wait for later align() call.
+                    del self.aligned_sequences
 
         elif name == 'aligned_sequences':
-            aln_seqs = [str(sr.seq) for sr in self.aligned_sequences]
-            self._amino_acids = tuple(zip(*aln_seqs))
-            if hasattr(self, 'pdb_structure') and \
-               self.pdb_structure is not None:
+            seq_len = len(value[0])
+            if not all(len(s) == seq_len for s in value[1:]):
+                raise ValueError('All aligned sequences must be the same '
+                                 'length.')
+            self._amino_acids = tuple(zip(*value))
+            if hasattr(self, 'pdb_structure'):
                 self.pdb_structure.renumber(self.aligned_sequences[0])
 
         elif name == 'pdb_structure' and hasattr(self, 'aligned_sequences'):
@@ -187,8 +188,11 @@ class ParentAlignment(Sequence):
             self.pdb_structure.renumber(self.aligned_sequences[0])
 
     def __delattr__(self, name):
+        super().__delattr__(name)
         if name == 'aligned_sequences':
             del self._amino_acids
+            if hasattr(self, 'pdb_structure'):
+                self.pdb_structure.derenumber()
 
     def __getitem__(self, key):
         """Amino acids at position key in the alignment.
@@ -196,18 +200,20 @@ class ParentAlignment(Sequence):
         Raises:
             AttributeError if the instance has not been aligned.
         """
-        if self._amino_acids is None:
+        try:
+            return self._amino_acids[key]
+        except AttributeError:
             raise AttributeError('ParentAlignment is not aligned yet.')
-        return self._amino_acids[key]
 
     def __len__(self):
         """Number of amino acid positions in the alignment.
 
         Raises AttributeError if the instance has not been aligned.
         """
-        if self._amino_acids is None:
+        try:
+            return len(self._amino_acids)
+        except AttributeError:
             raise AttributeError('ParentAlignment is not aligned yet.')
-        return len(self._amino_acids)
 
     @classmethod
     def from_fasta(cls, fasta_fn: str, **kwargs) -> 'ParentAlignment':
@@ -265,15 +271,15 @@ class ParentAlignment(Sequence):
                 average identity between the first parent and other sequences.
                 Otherwise, 70% identity.
         """
-        if len(self.sequences) >= num_final_sequences:
+        if len(self.parent_SeqRecords) >= num_final_sequences:
+            len_seqs = len(self.parent_SeqRecords)
             raise ValueError(f'Requested {num_final_sequences} total sequences'
-                             f' but there are already {len(self.sequences)} '
-                             'sequences.')
+                             f' but there are already {len_seqs} sequences.')
 
         # This results in two calls, but we want to validate before BLAST.
         desired_identity = self._check_identity(desired_identity)
 
-        query_sr = self.sequences[0]
+        query_sr = self.parent_SeqRecords[0]
         query_seq = str(query_sr.seq)
         candidate_seqs = list(query_blast(query_seq))
         # blast_query gives iter but list should be small enough
@@ -302,7 +308,7 @@ class ParentAlignment(Sequence):
                 Otherwise, 70% identity.
         """
 
-        num_preexisting_parents = len(self.sequences)
+        num_preexisting_parents = len(self.parent_SeqRecords)
         num_additional = num_final_sequences - num_preexisting_parents
         if num_additional <= 0:
             return
@@ -311,9 +317,10 @@ class ParentAlignment(Sequence):
                              f'add {num_additional} sequences.')
         desired_identity = self._check_identity(desired_identity)
 
-        best_cands = choose_candidates(candidate_sequences, self.sequences,
+        best_cands = choose_candidates(candidate_sequences,
+                                       self.parent_SeqRecords,
                                        num_additional, desired_identity)
-        self.sequences += best_cands
+        self.parent_SeqRecords += best_cands
 
     def align(self) -> None:
         """Align sequences with MUSCLE and set to aligned_sequences."""
@@ -324,7 +331,7 @@ class ParentAlignment(Sequence):
         OUT_FN = 'temp_muscle_output.fasta'
 
         # make file for MUSCLE input
-        SeqIO.write(self.sequences, IN_FN, 'fasta')
+        SeqIO.write(self.parent_SeqRecords, IN_FN, 'fasta')
         in_labels = [SR.name for SR in SeqIO.parse(IN_FN, 'fasta')]
 
         # run MUSCLE
@@ -338,7 +345,8 @@ class ParentAlignment(Sequence):
 
         # need to reorder MUSCLE output to be consistent with input
         out_SRs = {SR.name: SR for SR in SeqIO.parse(OUT_FN, 'fasta')}
-        self.aligned_sequences = [out_SRs[label] for label in in_labels]
+        reordered_srs = [out_SRs[label] for label in in_labels]
+        self.aligned_sequences = [str(sr.seq) for sr in reordered_srs]
 
         print('Muscle done, cleaning up files')
         os.remove(OUT_FN)
@@ -349,27 +357,40 @@ class ParentAlignment(Sequence):
 
     def to_json(self) -> str:
         """Convert instance to JSON."""
+        '''
         if self.aligned_sequences is None:
-            seq_records = self.sequences
+            seq_records = self.parent_SeqRecords
             aligned = False
         else:
             seq_records = self.aligned_sequences
             aligned = True
+        '''
 
         # TODO: probably add a version?
-        seq_records = []
-        # important to preserve order of sequences
-        for sr in seq_records:
+        unaln_sr_jsons = []
+        for sr in self.parent_SeqRecords:
             sr_dict = {'seq': str(sr.seq), 'id': sr.id, 'name': sr.name,
                        'description': sr.description}
-            seq_records.append(sr_dict)
-        out_dict = {'seq_records': seq_records, 'aligned': aligned,
-                    'auto_align': self._auto_align}
+            unaln_sr_jsons.append(sr_dict)
+
+        out_dict = {
+            'parent_SeqRecords': unaln_sr_jsons,
+            'auto_align': self._auto_align,
+            'prealigned': self._prealigned
+        }
+
+        if hasattr(self, 'aligned_sequences'):
+            out_dict['aligned_sequences'] = self.aligned_sequences
+
+        if hasattr(self, 'pdb_structure'):
+            out_dict['pdb_structure'] = self.pdb_structure.to_json()
+
         return json.dumps(out_dict)
 
     @classmethod
     def from_json(cls, in_json: str) -> 'ParentAlignment':
         """Construct instance from JSON."""
+        # TODO: Rewrite these.
         in_dict = json.loads(in_json)
 
         seq_records = []
@@ -385,16 +406,16 @@ class ParentAlignment(Sequence):
         new_instance = cls(seq_records, auto_align=False)
 
         if in_dict['aligned']:
-            # move sequences to aligned_sequences and recalculate unaligned
-            unaligned_seqs = []
+            # Move sequences to aligned_sequences and recalculate unaligned.
+            # This is not the same thing as prealigned.
+            srs = []
             for sr in seq_records:
-                u_str = str(sr.seq).replace('-', '')
-                u_seq = Seq(u_str)
-                u_sr = SeqRecord(u_seq, id=sr.id, name=sr.name,
-                                 description=sr.description)
-                unaligned_seqs.append(u_sr)
-            new_instance.sequences = unaligned_seqs
-            new_instance.aligned_sequences = seq_records
+                seq = Seq(str(sr.seq).replace('-', ''))
+                sr = SeqRecord(seq, id=sr.id, name=sr.name,
+                               description=sr.description)
+                srs.append(sr)
+            new_instance.parent_SeqRecords = srs
+            new_instance.aligned_sequences = [str(sr.seq) for sr in srs]
 
         new_instance._auto_align = in_dict['auto_align']
         return new_instance
@@ -404,12 +425,12 @@ class ParentAlignment(Sequence):
         if desired_identity is None:
             # Follow default behavior: 0.7 if there's only one sequence.
             # Average cross-wise identity of the sequences otherwise.
-            if len(self.sequences) == 1:
+            if len(self.parent_SeqRecords) == 1:
                 desired_identity = 0.7
             else:
                 # calculate average pairwise identity of parents
                 identities = [_calc_identity(sr1, sr2) for sr1, sr2
-                              in combinations(self.sequences, 2)]
+                              in combinations(self.parent_SeqRecords, 2)]
                 desired_identity = sum(identities) / len(identities)
         if not 0.0 < desired_identity < 1.0:
             raise ValueError('desired_identity must be between 0.0 and 1.0, '

@@ -11,4 +11,5 @@ Reference Manual
    :toctree: generated/
    :template: class.rst
 
-   ggrecomb.ParentAlignment
+   ParentAlignment
+   PDBStructure

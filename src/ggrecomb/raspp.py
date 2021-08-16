@@ -10,13 +10,23 @@ package to something like ggrecomb?
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from itertools import product, combinations
-from typing import NamedTuple, Optional, Union
+from typing import NamedTuple, Optional, Type, Union
 
 from ggrecomb.energy_functions import EnergyFunction, SCHEMA
 from ggrecomb.library import RecombinantLibrary
-from ggrecomb.parent_alignment import ParentAlignment
-from ggrecomb.parent_alignment.pdb_structure import PDBStructure
+from ggrecomb import ParentAlignment
+from ggrecomb import PDBStructure
 
+
+'''
+# List of optimal codons for E. coli.
+AA_C31 = {'A': ['GCT', 'GCA'], 'R': ['CGT', 'CGA'], 'N': ['AAT'], 'D': ['GAT'],
+          'C': ['TGT'], 'Q': ['CAA', 'CAG'], 'E': ['GAA'], 'G': ['GGT'],
+          'H': ['CAT', 'CAC'], 'I': ['ATT', 'ATC'], 'L': ['TTA', 'TTG', 'CTA'],
+          'K': ['AAA'], 'M': ['ATG'], 'F': ['TTT'], 'P': ['CCT', 'CCA'],
+          'S': ['AGT', 'TCA'], 'T': ['ACA', 'ACT'], 'W': ['TGG'], 'Y': ['TAT'],
+          'V': ['GTT', 'GTA'], '*': ['TGA'], '-': ['---']}
+'''
 
 # List of optimal codons for E. coli.
 AA_C31 = {'A': ('GCT', 'GCA'), 'R': ('CGT', 'CGA'), 'N': ('AAT',),
@@ -57,8 +67,8 @@ class RASPP:
             n: int,
             start_overhang: Optional[tuple[int, str]] = None,
             end_overhang: Optional[tuple[int, str]] = None,
-            codon_options: dict[str, list[str]] = AA_C31,
-            energy_func: Union[EnergyFunction, type[EnergyFunction]] = SCHEMA
+            codon_options: dict[str, tuple[str, ...]] = AA_C31,
+            energy_func: Union[EnergyFunction, Type[EnergyFunction]] = SCHEMA
     ):
         """Init a RASPP graph.
 
@@ -79,12 +89,13 @@ class RASPP:
                 EnergyFunction for more information. May pass in class or
                 instance.
         """
-        if isinstance(energy_func, type):
-            energy_func = energy_func(parent_aln)
 
         # Calculate all crossover sites valid for Golden Gate Assembly.
         self.breakpoints, self._bp_to_group = _calculate_breakpoints(
             parent_aln, codon_options, start_overhang, end_overhang)
+
+        if isinstance(energy_func, type):
+            energy_func = energy_func(parent_aln)
 
         # Cache used for redundant <M> calculations. Certain adjacent
         # breakpoints will have the same <M>, e.g. if there is only one amino
@@ -92,12 +103,17 @@ class RASPP:
         # the self._bp_to_group map to convert a library's breakpoints to the
         # nonredundant breakpoint group indices, which will be the keys to
         # self._bp_group_M_cache.
-        self._bp_group_M_cache = {}
+        self._bp_group_M_cache: dict[tuple[int, ...], float] = {}
 
         self.pa = parent_aln
 
         # Build RASPP graph nodes.
-        self.columns = [[_Node(0, 0, [start_overhang])]]
+        if start_overhang is None:
+            start_overhang_list = None
+        else:
+            start_overhang_list = [start_overhang]
+        first_col = [_Node(0, 0, start_overhang_list)]
+        self.columns = [first_col]
         for col in range(1, n + 1):
             # No edges into node => exclude it.
             min_index = self.columns[col-1][0].index + 1
@@ -365,7 +381,7 @@ def _get_valid_patterns(
 
 def _calculate_breakpoints(
     parent_aln: ParentAlignment,
-    codon_options: dict[str, tuple[str]],
+    codon_options: dict[str, tuple[str, ...]],
     start_overhang: Optional[tuple[int, str]] = None,
     end_overhang: Optional[tuple[int, str]] = None,
 ) -> dict[int, list[tuple[int, str]]]:
@@ -425,7 +441,10 @@ def _calculate_breakpoints(
     """
 
     # Check that codon_options contain all AAs in parent alignment.
-    aa_alphabet = set().union(*parent_aln)
+    print('hello')
+    print(parent_aln)
+    aa_alphabet: list[tuple[str, ...]] = set().union(*parent_aln)
+    print(aa_alphabet)
     assert all(aa in codon_options for aa in aa_alphabet)
 
     # Sets of codons for each amino acid at an alignment position.
@@ -532,7 +551,7 @@ class _Node:
     """
     col: int
     index: int
-    overhangs: list[tuple[int, str]]
+    overhangs: Optional[list[tuple[int, str]]]
     in_edges: list[_Edge] = field(default_factory=list)
     out_edges: list[_Edge] = field(default_factory=list)
 
@@ -611,12 +630,21 @@ class _Node:
 
 
 if __name__ == '__main__':
+    import sys
+
+    loc = '../../tests/bgl3_sample/'
+    pa = ParentAlignment.from_fasta(loc+'bgl3_sequences.fasta')
+    pdb = PDBStructure.from_pdb_file(loc+'1GNX.pdb')
+    pa.pdb_structure = pdb
+
+    sys.exit()
+
     '''
     loc = '../tests/bgl3_sample/truncated/'
     pa = ParentAlignment.from_fasta(loc+'trunc.fasta')
     pdb = PDBStructure.from_pdb_file(loc+'trunc.pdb')
     '''
-    loc = '../tests/bgl3_sample/'
+    loc = '../../tests/bgl3_sample/'
     pa = ParentAlignment.from_fasta(loc+'bgl3_sequences.fasta')
     pdb = PDBStructure.from_pdb_file(loc+'1GNX.pdb')
     pa.pdb_structure = pdb

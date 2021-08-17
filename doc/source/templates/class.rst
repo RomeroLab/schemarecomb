@@ -4,6 +4,7 @@
 .. currentmodule:: {{ module }}
 
 .. autoclass:: {{ objname }}
+   :members:
    :no-undoc-members:
 
 .. raw:: html

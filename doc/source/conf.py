@@ -53,7 +53,7 @@ templates_path = ['templates']
 
 autodoc_typehints = 'description'
 autodoc_typehints_description_target = 'documented'
-autodoc_default_options = {"members": True, "inherited-members": True}
+# autodoc_default_options = {"members": True, "inherited-members": True}
 autodoc_member_order = 'bysource'
 
 # -- Options for HTML output -------------------------------------------------
@@ -62,6 +62,13 @@ autodoc_member_order = 'bysource'
 # a list of builtin themes.
 #
 html_theme = 'alabaster'
+
+
+def setup(app):
+    import ggrecomb
+    # need to assign the names here, otherwise autodoc won't document these
+    # classes, # and will instead just say 'alias of ...'
+    ggrecomb.PDBStructure.__name__ = 'PDBStructure'
 
 
 # Changes autoclass "variables" to "attributes".

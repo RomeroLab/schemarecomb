@@ -18,18 +18,19 @@ import json
 import os
 from subprocess import CalledProcessError, run
 from typing import Optional, Union
+import urllib.request
 
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
 from .blast import query_blast
-from .parent_candidates import choose_candidates
-from .utils import _calc_identity
-import ggrecomb.parent_alignment.pdb_structure as pdb_s
+from .pa_candidates import choose_candidates
+from ggrecomb import PDBStructure
+from .utils import calc_identity
 
 
-class ParentAlignment(Sequence):
+class _ParentAlignment(Sequence):
     """
     Alignment of parent amino acid sequences for recombinant library design.
 
@@ -127,7 +128,7 @@ class ParentAlignment(Sequence):
         parent_SeqRecords: list[SeqRecord],
         auto_align: bool = True,
         prealigned: bool = False,
-        pdb_structure: 'pdb_s.PDBStructure' = None
+        pdb_structure: 'PDBStructure' = None
     ) -> None:
         # Input checking.
         if len(parent_SeqRecords) < 1:
@@ -144,7 +145,7 @@ class ParentAlignment(Sequence):
 
         # Attribute static typing.
         self.aligned_sequences: list[str]
-        self.pdb_structure: 'pdb_s.PDBStructure'
+        self.pdb_structure: 'PDBStructure'
 
         self._auto_align = auto_align
         self._prealigned = prealigned
@@ -216,7 +217,7 @@ class ParentAlignment(Sequence):
             raise AttributeError('ParentAlignment is not aligned yet.')
 
     @classmethod
-    def from_fasta(cls, fasta_fn: str, **kwargs) -> 'ParentAlignment':
+    def from_fasta(cls, fasta_fn: str, **kwargs) -> '_ParentAlignment':
         """Contruct instance from FASTA file.
 
         Parameters:
@@ -234,7 +235,7 @@ class ParentAlignment(Sequence):
                     name: Optional[str] = None,
                     num_final_sequences: int = 3,
                     desired_identity: float = 0.7,
-                    **kwargs) -> 'ParentAlignment':
+                    **kwargs) -> '_ParentAlignment':
         """Contruct instance from single amino acid sequence.
 
         Parameters:
@@ -355,6 +356,60 @@ class ParentAlignment(Sequence):
         if hasattr(self, 'pdb_structure') and self.pdb_structure is not None:
             self.pdb_structure.renumber(self.aligned_sequences[0])
 
+    def get_PDB(self):
+        """Construct from ParentAlignment using BLAST and PDB.
+
+        The best structure is found by using BLAST to download candidate PDB
+        sequences, then the sequence with the largest minimum identity to the
+        parents is selected. This sequence is aligned with the first parent to
+        renumber the PDB residues to parent alignment.
+
+        Note that the current implementation doesn't renumber PDB residues that
+        aren't found in the first parent. This effectively means that the first
+        parent should always be selected from the PDB database.
+
+        Parameters:
+            parent_aln: Parent alignment used to query the PDB. Note that
+                parent_aln[0] is used in the query and PDBStructure alignment.
+
+        """
+        try:
+            query_str = self.aligned_sequences[0]
+        except AttributeError:
+            raise AttributeError('ParentAlignment is not aligned.')
+
+        pdb_srs = list(query_blast(query_str, 'pdbaa', 100))
+
+        # Find the PDB struct with largest minimum identity to the parents.
+        best_id = None  # track the best sequence
+        best_min_iden = 0.0  # minimum parental identity of best sequence
+        for pdb_sr in pdb_srs:
+            min_iden = 1.0  # minimum parental identity of current sequence
+            is_minimum = True  # whether the current sequence is the best
+            for par_sr in self.parent_SeqRecords:
+                iden = calc_identity(pdb_sr, par_sr)
+                if iden < best_min_iden:  # sequence suboptimal, short-circuit
+                    is_minimum = False
+                    break
+                min_iden = min(min_iden, iden)
+            if is_minimum:  # never set false, must be optimal so far
+                best_id = pdb_sr.id
+                best_min_iden = min_iden
+
+        if best_id is None:
+            raise ValueError('No best PDB found.')
+
+        # Get the pdb_structure from rcsb.
+        acc = best_id.split('|')[1]
+        url = 'https://files.rcsb.org/view/' + acc + '.pdb'
+        request = urllib.request.Request(url)
+        with urllib.request.urlopen(request) as f:
+            pdb_structure = PDBStructure.from_pdb_file(f)
+
+        # pdb_structure.renumber(query_str)  # probably don't want this?
+
+        return pdb_structure
+
     def to_json(self) -> str:
         """Convert instance to JSON."""
         '''
@@ -388,7 +443,7 @@ class ParentAlignment(Sequence):
         return json.dumps(out_dict)
 
     @classmethod
-    def from_json(cls, in_json: str) -> 'ParentAlignment':
+    def from_json(cls, in_json: str) -> '_ParentAlignment':
         """Construct instance from JSON."""
         # TODO: Rewrite these.
         in_dict = json.loads(in_json)
@@ -429,7 +484,7 @@ class ParentAlignment(Sequence):
                 desired_identity = 0.7
             else:
                 # calculate average pairwise identity of parents
-                identities = [_calc_identity(sr1, sr2) for sr1, sr2
+                identities = [calc_identity(sr1, sr2) for sr1, sr2
                               in combinations(self.parent_SeqRecords, 2)]
                 desired_identity = sum(identities) / len(identities)
         if not 0.0 < desired_identity < 1.0:

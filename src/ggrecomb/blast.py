@@ -10,9 +10,6 @@ from urllib.request import Request
 
 from Bio import Entrez, SeqIO, SeqRecord
 from Bio.Blast.NCBIWWW import _parse_qblast_ref_page
-# ^This import is Python heresy but who's going to stop me?
-
-NCBI_BLAST_URL = "https://blast.ncbi.nlm.nih.gov/Blast.cgi"
 
 
 def query_blast(query_seq: str, database: str = 'refseq_protein',
@@ -33,6 +30,8 @@ def query_blast(query_seq: str, database: str = 'refseq_protein',
     Returns:
         FASTA generator for sequence hits.
     """
+
+    NCBI_BLAST_URL = "https://blast.ncbi.nlm.nih.gov/Blast.cgi"
 
     # Only refseq_protein and pdbaa databases supported.
     if database not in ('refseq_protein', 'pdbaa'):

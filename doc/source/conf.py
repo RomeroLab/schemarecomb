@@ -69,6 +69,7 @@ def setup(app):
     # need to assign the names here, otherwise autodoc won't document these
     # classes, # and will instead just say 'alias of ...'
     ggrecomb.PDBStructure.__name__ = 'PDBStructure'
+    ggrecomb.ParentAlignment.__name__ = 'ParentAlignment'
 
 
 # Changes autoclass "variables" to "attributes".

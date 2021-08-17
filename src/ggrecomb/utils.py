@@ -4,7 +4,7 @@
 from Bio import pairwise2, SeqRecord
 
 
-def _calc_identity(sr1: SeqRecord.SeqRecord, sr2: SeqRecord.SeqRecord) \
+def calc_identity(sr1: SeqRecord.SeqRecord, sr2: SeqRecord.SeqRecord) \
         -> float:
     """Calculate the BLAST identity between two sequences.
 
@@ -21,4 +21,4 @@ def _calc_identity(sr1: SeqRecord.SeqRecord, sr2: SeqRecord.SeqRecord) \
 
 
 def iden_diff(sr1, sr2, target_identity):
-    return abs(_calc_identity(sr1, sr2) - target_identity)
+    return abs(calc_identity(sr1, sr2) - target_identity)

@@ -26,4 +26,4 @@ Additional modules
     :toctree: generated/
     :template: module.rst
 
-    parent_alignment.pdb_structure
+    pdb_structure

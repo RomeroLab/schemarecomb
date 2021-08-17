@@ -7,13 +7,16 @@ choose_candidates implement a tree-based search over all possible length-
 <num_additional> combinations of candidate sequences. Importantly, the search
 is short circuited such that the function returns if the best combination is
 known to be found early.
+
+TODO: Maybe this should be in parent_alignment.py?
+
 """
 
 from collections import defaultdict
 
 from Bio import SeqRecord
 
-from .utils import _calc_identity
+from .utils import calc_identity
 
 
 class TreeNode:
@@ -59,7 +62,7 @@ class TreeNode:
         if self.cands:
             # Calculate the identity diff between the new candidate and each
             # candidate in self.cands.
-            new_cc_diff = max(abs(target_identity - _calc_identity(cand, x))
+            new_cc_diff = max(abs(target_identity - calc_identity(cand, x))
                               for x in self.cands)
             # Choose maximum between old cc_diff and new_cc_diff.
             new_cc_diff = max(self.max_cc_diff, new_cc_diff)
@@ -192,7 +195,7 @@ def choose_candidates(candidate_sequences: list[SeqRecord.SeqRecord],
     print('Calculating pc_diff and sorted')
     for i, cand in enumerate(candidate_sequences):
         print(i, '\r', end='')
-        max_diff = max(abs(desired_identity - _calc_identity(cand, x))
+        max_diff = max(abs(desired_identity - calc_identity(cand, x))
                        for x in existing_parents)
         cand_diffs.append((cand, max_diff))
     print()

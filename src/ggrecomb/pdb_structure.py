@@ -71,16 +71,11 @@ from itertools import combinations
 import json
 from pathlib import Path
 from typing import Optional, TextIO, Union
-from urllib.request import urlopen
 
 from Bio import pairwise2
 from Bio.SeqUtils import seq1
 import numpy as np
 from scipy.spatial import distance
-
-from .blast import query_blast
-import ggrecomb.parent_alignment.parent_alignment as pa
-from .utils import _calc_identity
 
 
 @dataclass
@@ -377,11 +372,12 @@ class _PDBStructure:
         if hasattr(self, '_contacts'):
             del self._contacts
 
+    '''
     @classmethod
     def from_ParentAlignment(
         cls,
-        parent_aln: 'pa.ParentAlignment',
-    ) -> 'PDBStructure':
+        parent_aln: 'pa._ParentAlignment',
+    ) -> '_PDBStructure':
         """Construct from ParentAlignment using BLAST and PDB.
 
         The best structure is found by using BLAST to download candidate PDB
@@ -412,7 +408,7 @@ class _PDBStructure:
             min_iden = 1.0  # minimum parental identity of current sequence
             is_minimum = True  # whether the current sequence is the best
             for par_sr in parent_aln.parent_SeqRecords:
-                iden = _calc_identity(pdb_sr, par_sr)
+                iden = calc_identity(pdb_sr, par_sr)
                 if iden < best_min_iden:  # sequence suboptimal, short-circuit
                     is_minimum = False
                     break
@@ -435,13 +431,14 @@ class _PDBStructure:
         pdb_structure.renumber(query_str)
 
         return pdb_structure
+    '''
 
     @classmethod
     def from_pdb_file(
         cls,
         f: Union[str, Path, TextIO],
         chain: str = 'A'
-    ) -> 'PDBStructure':
+    ) -> '_PDBStructure':
         """Construct from PDB file without renumbering.
 
         Parameters:
@@ -485,7 +482,7 @@ class _PDBStructure:
         return json.dumps([aa_jsons, self.is_renumbered])
 
     @classmethod
-    def from_json(cls, in_json: str) -> 'PDBStructure':
+    def from_json(cls, in_json: str) -> '_PDBStructure':
         """Construct from JSON string.
 
         Parameters:

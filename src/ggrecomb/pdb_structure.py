@@ -1,10 +1,10 @@
 # pdb_structure.py
 
-"""Module for obtaining and manipulating PDB files for SCHEMA-RASPP.
+"""Parse and manipulate Protein Data Bank structure files.
 
-This module provides the PDBStructure class (which can be directly imported
-from ggrecomb) and the accessory classes AminoAcid and Atoms, that represent
-the eponymous entities with a PDB structure.
+This module provides the definition of :class:`ggrecomb.PDBStructure` and the
+accessory classes :class:`AminoAcid` and :class:`Atom` that represent the
+eponymous entities with a PDB structure.
 
 Parsing and modifying protein structure data is necessary for recombinant
 library design because SCHEMA energy calculations require the distance between
@@ -19,11 +19,11 @@ The most confusing part about PDB structure manipulation is the renumbering of
 atoms to match SCHEMA-RASPP parent alignment. Relieving user confusion about
 this process is a primary goal of this module. Note that atom/residue indexing
 in PDB files begins at 1, while Python's indexing starts at 0. For consistency
-with the rest of the module, these classes index the residue number starting
+with the rest of the package, these classes index the residue number starting
 from 0. As a result, PDB file reading and writing PDB must convert between
 indexing. For example, the "ALA" lines in the pdb file below indicate that the
 15th amino acid in the structure is alanine. When read with this module, this
-alanine will be labeled with a res_seq_num of 14. This is consistent with
+alanine will be labeled with an index of 14. This is consistent with
 sequence number: if pdb_seq is the Python String representing the amino acid
 sequence of the structure , this residue would be pdb_seq[14].
 
@@ -53,20 +53,10 @@ PDB files generally have this structure (example structure 1GNX)::
  ...<other atoms>...
  ...<other structure data>...
 
-TODO: This constructor's BLAST search and filter are effectively
-pointless. This constructor should probably be broken into a few
-separate constructors::
-
-    - Input aligned PDB sequence.
-    - Input PDB accession and align to parent_alignment?
-    - Input parent sequences and find if any parents are PDB/closest.
-    - Basically this constructor but handle PDB differences.
-    - Add renumbering as a post-initialization option to enable manual
-            construction of structures.
 """
 
-from collections.abc import Iterable
 from dataclasses import dataclass
+from functools import cached_property
 from itertools import combinations
 import json
 from pathlib import Path
@@ -86,7 +76,9 @@ class Atom:
     files <https://www.cgl.ucsf.edu/chimera/docs/UsersGuide/tutorials/pdbintro
     .html>`_. The primary constructor is Atom.from_line() to allow for easy
     parsing of PDB files. For ggrecomb, the important attributes are res_name,
-    res_seq_num, x, y, and z.
+    res_index, x, y, and z.
+
+    Initalization parameters and attributes are equivalent for this class.
 
     Attributes:
         serial_num: Atom serial number.
@@ -94,7 +86,7 @@ class Atom:
         alt_loc: Alternate location indicator.
         res_name: Residue name.
         chain: Chain identifier.
-        res_seq_num: Residue sequence number.
+        res_index: Residue index within the structure..
         insertion_code: Code for insertions of residues.
         x: X orthogonal Angstrom coordinate.
         y: Y orthogonal Angstrom coordinate.
@@ -111,7 +103,7 @@ class Atom:
     alt_loc: str
     res_name: str
     chain: str
-    res_seq_num: int
+    res_index: int
     insertion_code: str
     x: float
     y: float
@@ -147,7 +139,7 @@ class Atom:
             alt_loc = line[16]
             res_name = line[17:20].strip()
             chain = line[21]
-            res_seq_num = int(line[22:26].strip()) - 1  # switch to 0 indexing
+            res_index = int(line[22:26].strip()) - 1  # switch to 0 indexing
             insertion_code = line[26]
             x = float(line[30:38].strip())
             y = float(line[38:46].strip())
@@ -161,7 +153,7 @@ class Atom:
             raise ValueError('Invalid ATOM line passed into ATOM.from_line():'
                              f' {line}')
 
-        return cls(serial_num, name, alt_loc, res_name, chain, res_seq_num,
+        return cls(serial_num, name, alt_loc, res_name, chain, res_index,
                    insertion_code, x, y, z, occup, temp, segment, element,
                    charge)
 
@@ -169,7 +161,7 @@ class Atom:
         """Convert to PDB file ATOM line.
 
         Returns:
-            ATOM line to in PDB file format.
+            str of ATOM line in PDB file format.
         """
         line = list('ATOM') + [' ' for _ in range(75)]
         line[6:11] = str(self.serial_num).rjust(5)
@@ -180,7 +172,7 @@ class Atom:
         line[16] = self.alt_loc
         line[17:20] = self.res_name.rjust(3)
         line[21] = self.chain
-        line[22:26] = str(self.res_seq_num+1).rjust(4)  # switch to 1 indexing
+        line[22:26] = str(self.res_index+1).rjust(4)  # switch to 1 indexing
         line[26] = self.insertion_code
         line[30:38] = f'{self.x:.3f}'.rjust(8)
         line[38:46] = f'{self.y:.3f}'.rjust(8)
@@ -196,147 +188,248 @@ class Atom:
 class AminoAcid:
     """Amino acid within a PDB structure.
 
-    Collection of atoms that make up an a residue in the PDB structure, plus
-    additional functions for SCHEMA-RASPP calculation.
+    This class is a collection of :class:`Atom` objects that make up a residue
+    in a :class:`ggrecomb.PDBStructure`, plus additional functions for ggrecomb
+    calculation.
 
-    Public attributes:
+    Parameters:
+        atoms: Atoms within the AminoAcid. All Atom objects in list must have
+            the same res_name and res_index. res_index must be indexed from 0,
+            not 1, but this should have happened on Atom initialization.
+
+    Attributes:
         atoms: The residue's atoms.
-        res_name: Name of the residue.
-        res_seq_num: Number of the residue within the structure.
-        letter: res_name converted to one letter for convenience.
-        coords: x, y, and z coordinates of each atom.
+        name: Name of the residue, e.g. ALA, LEU.
+        index: Index of the residue within the structure.
+        orig_index: Original struct_index. Not set unless the AminoAcid is
+            renumbered.
+        letter: name converted to one letter code.
+        coords: x, y, and z coordinates of each atom in a Nx3 numpy ndarray,
+            where N is the number of atoms.
 
-    Public methods:
-        to_lines: Convert to section of PDB ATOM lines.
-        d: Distance between closent atoms of this and another residue.
-        renumber: Change the res_seq_num of the amino acid and its atoms.
-
-    Constructors:
-        from_lines: From ATOM lines in a PDB files.
-        from_atoms: From list of Atoms.
     """
-    def __init__(
-        self,
-        atoms: list[Atom],
-        res_name: str,
-        res_seq_num: int,
-        letter: str
-    ):
+    def __init__(self, atoms: list[Atom]):
+        if not atoms:
+            raise ValueError('atoms must not be an empty list.')
+
         self.atoms = atoms
-        self.res_name = res_name
-        self.res_seq_num = res_seq_num
-        self.orig_rs_num = res_seq_num
-        self.letter = letter
+
+        res_name = atoms[0].res_name
+        if any(a.res_name != res_name for a in atoms):
+            raise ValueError('Atoms do not all have the same res_name.')
+        self.name = res_name
+
+        res_index = atoms[0].res_index
+        if any(a.res_index != res_index for a in atoms):
+            raise ValueError('Atoms do not all have the same res_index.')
+        self.index = res_index
 
     @property
+    def letter(self):
+        three_letters = self.name[0] + self.name[1:].lower()
+        return seq1(three_letters)
+
+    @cached_property
     def coords(self) -> np.ndarray:  # shape (# atoms, 3)
-        """x, y, and z coordinates in a numpy array."""
         return np.asarray([(a.x, a.y, a.z) for a in self.atoms])
 
-    @classmethod
-    def from_lines(cls, lines: Union[str, Iterable[str]]) -> 'AminoAcid':
-        """Construct from ATOM lines in a PDB file."""
-        if isinstance(lines, str):
-            lines = lines.split('\n')
-        atoms = [Atom.from_line(line) for line in lines]
-        return cls.from_atoms(atoms)
-
-    @classmethod
-    def from_atoms(cls, atoms: list[Atom]) -> 'AminoAcid':
-        """Construct from list of Atoms."""
-        res_name = atoms[0].res_name
-        assert all(a.res_name == res_name for a in atoms)
-        res_seq_num = atoms[0].res_seq_num
-        assert all(a.res_seq_num == res_seq_num for a in atoms)
-        three_letters = res_name[0] + res_name[1:].lower()
-        letter = seq1(three_letters)
-        return cls(atoms, res_name, res_seq_num, letter)
-
-    def to_lines(self) -> str:
-        """Convert to section of PDB ATOM lines."""
-        # TODO: Add original_rs_num as metadata.
-        return '\n'.join([a.to_line() for a in self.atoms])
-
-    def renumber(self, new_num: int) -> None:
-        """Change the res_seq_num of the amino acid and its atoms."""
-        self.res_seq_num = new_num
+    def renumber(self, new_index: int) -> None:
+        """Change the structure index of the amino acid and its atoms."""
+        self.orig_index = self.index
+        self.index = new_index
         for a in self.atoms:
-            a.res_seq_num = new_num
+            a.res_index = new_index
 
     def derenumber(self) -> None:
-        """Revert any changes made by the renumber method."""
-        old_num = self.orig_rs_num
-        self.res_seq_num = old_num
+        """Revert changes made by the renumber method."""
+        old_index = self.orig_index
+        del self.orig_index
+        self.index = old_index
         for a in self.atoms:
-            a.res_seq_num = old_num
+            a.res_index = old_index
+
+    @classmethod
+    def from_lines(cls, lines: list[str]) -> 'AminoAcid':
+        """Construct AminoAcid from ATOM lines in a PDB file.
+
+        Parameters:
+            lines: ATOM lines in a PDB file.
+
+        """
+        atoms = [Atom.from_line(line) for line in lines]
+        return cls(atoms)
+
+    def to_lines(self) -> list[str]:
+        """Convert to section of PDB ATOM lines.
+
+        Note:
+            This method does not save the orig_index attribute.
+
+        Example:
+         >>> from ggrecomb.pdb_structure import AminoAcid
+         >>> pdb_fn = 'tests/fixtures/bgl3_full/1GNX.pdb'
+         >>> in_lines = []
+         >>> with open(pdb_fn) as f:
+         >>>     for line in f:
+         >>>         if line[:4] != 'ATOM':
+         >>>             continue
+         >>>         res_index = int(line[22:26].strip())
+         >>>         # 1GNX starts at 15, see pdb_structure module docs.
+         >>>         if res_index == 15:
+         >>>             in_lines.append(line)
+         >>>         else:
+         >>>             break
+         >>> aa = AminoAcid.from_lines(in_lines)
+         >>> out_lines = aa1.to_lines()
+         >>> all(i == o for i, o in zip(in_lines, out_lines))
+         True
+
+        """
+        return [a.to_line() for a in self.atoms]
 
     @classmethod
     def from_json(cls, in_json: str) -> 'AminoAcid':
-        lines, orig_rs_num = json.loads(in_json)
+        """JSON from_lines wrapper that includes orig_index.
+
+        Parameters:
+            in_json: JSON-formatted input string of a list that contains a list
+                of ATOM lines and orig_index, the latter of which may be null.
+
+        """
+        lines, orig_index = json.loads(in_json)
         obj = cls.from_lines(lines)
-        obj.orig_rs_num = int(orig_rs_num)
+        if orig_index is not None:
+            obj.orig_index = orig_index
         return obj
 
     def to_json(self) -> str:
-        """to_lines wrapper that includes orig_rs_num."""
-        return json.dumps([self.to_lines(), self.orig_rs_num])
+        """JSON to_lines wrapper that includes orig_index.
+
+        Example:
+         >>> from ggrecomb import _PDBStructure
+         >>> from ggrecomb.pdb_structure import AminoAcid
+         >>> pdb_fn = 'tests/fixtures/bgl3_full/1GNX.pdb'
+         >>> pdb = PDBStructure.from_pdb_file(pdb_fn)
+         >>> aa1 = pdb.amino_acids[0]
+         >>> json_str = aa1.to_json()
+         >>> aa2 = AminoAcid.from_json(json_str)
+         >>> aa1.name == aa2.name
+         True
+         >>> aa1.index == aa2.index
+         True
+
+        """
+        orig_index: Optional[int]
+        try:
+            orig_index = self.orig_index
+        except AttributeError:
+            orig_index = None
+        return json.dumps([self.to_lines(), orig_index])
 
 
 class _PDBStructure:
-    """Protein crytal structure from PDB, composed of AminoAcids.
+    """Structure from the Protein Data Bank. Used in downstream calculations.
+
+    This class is a Python representation of a PDB file, e.g. `1GNX.pdb
+    <https://files.rcsb.org/download/1GNX.pdb>`_, which are downloaded from
+    https://www.rcsb.org. This download may be done automatically with the
+    :meth:`ggrecomb.ParentAlignment.get_PDB` method or manually. In the latter
+    case, PDBStructure object must also be created manually, e.g. using the
+    :meth:`from_pdb_file` class method.
+
+    Note:
+        There is no guarantee that the amino_acids attribute is ordered
+        by the index of the amino acid.
+
+    See :mod:`ggrecomb.pdb_structure` for more information on the details of
+    this class.
 
     Parameters:
-        amino_acids: Amino acid residues in the PDB structure.
-        renumbering_seq: Sequence used to renumber structure. Can be None if
-            initialized structure is not renumbered.
+        amino_acids: Amino acids in the PDB structure.
+        unrenumbered_amino_acids: The amino acids not included in renumbering.
+            None if PDBStructure is not renumbered. Must be None if
+            renumbering_seq is None.
+        renumbering_seq: Sequence used to renumber structure. None if
+            PDBStructure is not renumbered. Must not None if
+            unrenumbered_amino_acids is None.
 
     Attributes:
-        amino_acids: Resides in PDB structure.
-        renumbering_seq: Sequence used to renumber structure. Only present if
-            structure is renumbered.
-        seq: Amino acid sequence of structure.
-        aligned_seq: seq aligned to a ParentAlignment. AttributeError is raised
-            if structure has not been aligned.
-        contacts: Indices of contacting residues. Used in SCHEMA energy.
+        amino_acids: Residues in the PDB structure.
+        unrenumbered_amino_acids: Original amino_acids not including in the
+            renumbering. Only present if structure is renumbered.
+        renumbering_seq: Sequence that was used to renumber structure. Only
+            present if structure is renumbered.
+        seq: Amino acid sequence of structure, including gaps based on the
+            indices of the amino_acids. Note that this attribute will change
+            if renumbering occurs.
+        contacts: Indices of contacting residues, where a pair of residues are
+            contacting if the shortest distance between them is less than 4.5
+            angstroms.
 
     """
 
     def __init__(
         self,
         amino_acids: list[AminoAcid],
+        unrenumbered_amino_acids: Optional[list[AminoAcid]] = None,
         renumbering_seq: Optional[str] = None
     ):
+        # Ensure that all amino_acid have unique indices.
+        indices = set()
+        for aa in amino_acids:
+            index = aa.index
+            if index in indices:
+                raise ValueError('AminoAcid objects in a PDBStructure must '
+                                 'have unique indices.')
+            indices.add(index)
+
         self.amino_acids = amino_acids
-        if renumbering_seq is not None:
+        self._contacts: list[tuple[int, int]]
+
+        # If PDBStructure is already aligned, both unrenumberd_amino_acids and
+        # renumbering_seq must both be not None.
+        if unrenumbered_amino_acids is not None \
+           and renumbering_seq is not None:
+            if not unrenumbered_amino_acids:
+                raise ValueError('unrenumbered_amino_acids must not be empty.')
+
+            if any(aa.letter != renumbering_seq[aa.index] for aa
+                   in amino_acids):
+                raise ValueError(f'renumbering seq "{renumbering_seq}" is '
+                                 'invalid with input amino_acids.')
+
+            self.unrenumbered_amino_acids = unrenumbered_amino_acids
             self.renumbering_seq = renumbering_seq
+        elif not (unrenumbered_amino_acids is None
+                  and renumbering_seq is None):
+            raise ValueError('Unrenumbered_amino_acids and renumbering_seq '
+                             'must both be None if one is None.')
 
     @property
     def seq(self) -> str:
-        return ''.join([aa.letter for aa in self.amino_acids])
-
-    @property
-    def aligned_seq(self) -> str:
-        seq_dict = {aa.res_seq_num: aa.letter for aa in self.amino_acids}
+        seq_dict = {aa.index: aa.letter for aa in self.amino_acids}
         return ''.join([seq_dict.get(i, '-') for i in range(max(seq_dict)+1)])
 
     @property
     def contacts(self) -> list[tuple[int, int]]:
         try:
             # Cached contacts.
-            contacts = self._contacts
+            return self._contacts
         except AttributeError:
             contacts = []
-            aa_coords = [aa.coords for aa in self.amino_acids]
-            combos = combinations(range(len(aa_coords)), 2)
+            aa_coords = {aa.index: aa.coords for aa in self.amino_acids}
+            combos = combinations(aa_coords, 2)
             for ii, j in combos:
                 a1 = aa_coords[ii]
                 a2 = aa_coords[j]
                 d = distance.cdist(a1, a2)
+                if (ii, j) == (12, 251) or (j, ii) == (12, 251):
+                    print(d)
                 if np.any(d < 4.5):
                     contacts.append((ii, j))
+                    contacts.append((j, ii))
             self._contacts = contacts
-
-        return contacts
+            return contacts
 
     def renumber(self, p1_aligned: str) -> None:
         """Renumber pdb structure to match ParentAlignment.
@@ -346,92 +439,72 @@ class _PDBStructure:
                 a ParentAlignment.
 
         """
-        pdb_atom_seq = ''.join([aa.letter for aa in self.amino_acids])
-        aln = pairwise2.align.globalxx(p1_aligned, pdb_atom_seq, gap_char='.',
-                                       one_alignment_only=True)[0]
-        pdb_iter = iter(self.amino_acids)
-        par_index = 0  # PDB files normally index from 0.
-        for i, (par_aa, pdb_aa) in enumerate(zip(aln.seqA, aln.seqB)):
-            if pdb_aa != '.':
-                next(pdb_iter).renumber(par_index)
-            if par_aa == '.':
-                # TODO: handle this more formally?
-                print(f'warning: residue {i} in pdb but not par')
-            else:
-                par_index += 1
+        # If already renumbered, derenumber to get all amino_acids back.
+        if hasattr(self, 'unrenumbered_amino_acids'):
+            self.derenumber()
 
+        # Will put each AminoAcid into one of these.
+        renumbered_amino_acids = []
+        unrenumbered_amino_acids = []
+
+        # Order self.amino_acids.
+        index_to_amino_acids = {aa.index: aa for aa in self.amino_acids}
+        ordered_amino_acids = [index_to_amino_acids[i] for i
+                               in sorted(index_to_amino_acids)]
+
+        # Align p1_aligned and the PDBStructure, using '.' for gaps.
+        pdb_seq = ''.join([aa.letter for aa in ordered_amino_acids])
+        aln = pairwise2.align.globalxx(p1_aligned, pdb_seq, gap_char='.',
+                                       one_alignment_only=True)[0]
+        aligned_p1_seq = aln.seqA
+        aligned_pdb_seq = aln.seqB
+
+        # Simultaneously iterate through ordered amino_acids and the
+        # alignment. Every time we see a non-gap character in aligned_pdb_seq,
+        # the next element in pdb_iter is the AminoAcid corresponding to that
+        # character. If p1 character at the same position in the alignment is
+        # also not a gap, we renumber the AminoAcid to the parent_index and
+        # include it.
+        pdb_iter = iter(ordered_amino_acids)
+        parent_index = 0  # Tracks the index of the p1.
+        alignment_iter = zip(aligned_p1_seq, aligned_pdb_seq)
+        for i, (par_aa, pdb_aa) in enumerate(alignment_iter):
+            if pdb_aa != '.':
+                candidate_aa = next(pdb_iter)
+                if par_aa != '.':
+                    # Aligned residue. Renumber to parent and include.
+                    candidate_aa.renumber(parent_index)
+                    renumbered_amino_acids.append(candidate_aa)
+                    parent_index += 1
+                else:
+                    # In pdb but not p1, include in unrenumbered_amino_acids.
+                    print(f'warning: residue {i} in pdb but not parent.')
+                    unrenumbered_amino_acids.append(candidate_aa)
+            elif par_aa != '.':
+                # Not in pdb, but in p1, increment parent_index.
+                parent_index += 1
+
+        self.amino_acids = renumbered_amino_acids
+        self.unrenumbered_amino_acids = unrenumbered_amino_acids
+        self.renumbering_seq = p1_aligned
         if hasattr(self, '_contacts'):
             del self._contacts
-        self.renumbering_seq = p1_aligned
 
     def derenumber(self):
         """Revert any changes made by the renumber method back to original."""
+        try:
+            unrenumbered_amino_acids = self.unrenumbered_amino_acids
+            del self.unrenumbered_amino_acids
+        except AttributeError:
+            raise AttributeError('PDBStructure has not been renumbered.')
+
         for aa in self.amino_acids:
             aa.derenumber()
+        amino_acids = self.amino_acids + unrenumbered_amino_acids
+        self.amino_acids = amino_acids
         del self.renumbering_seq
         if hasattr(self, '_contacts'):
             del self._contacts
-
-    '''
-    @classmethod
-    def from_ParentAlignment(
-        cls,
-        parent_aln: 'pa._ParentAlignment',
-    ) -> '_PDBStructure':
-        """Construct from ParentAlignment using BLAST and PDB.
-
-        The best structure is found by using BLAST to download candidate PDB
-        sequences, then the sequence with the largest minimum identity to the
-        parents is selected. This sequence is aligned with the first parent to
-        renumber the PDB residues to parent alignment.
-
-        Note that the current implementation doesn't renumber PDB residues that
-        aren't found in the first parent. This effectively means that the first
-        parent should always be selected from the PDB database.
-
-        Parameters:
-            parent_aln: Parent alignment used to query the PDB. Note that
-                parent_aln[0] is used in the query and PDBStructure alignment.
-
-        """
-        try:
-            query_str = parent_aln.aligned_sequences[0]
-        except AttributeError:
-            raise AttributeError('ParentAlignment is not aligned.')
-
-        pdb_srs = list(query_blast(query_str, 'pdbaa', 100))
-
-        # Find the PDB struct with largest minimum identity to the parents.
-        best_id = None  # track the best sequence
-        best_min_iden = 0.0  # minimum parental identity of best sequence
-        for pdb_sr in pdb_srs:
-            min_iden = 1.0  # minimum parental identity of current sequence
-            is_minimum = True  # whether the current sequence is the best
-            for par_sr in parent_aln.parent_SeqRecords:
-                iden = calc_identity(pdb_sr, par_sr)
-                if iden < best_min_iden:  # sequence suboptimal, short-circuit
-                    is_minimum = False
-                    break
-                min_iden = min(min_iden, iden)
-            if is_minimum:  # never set false, must be optimal so far
-                best_id = pdb_sr.id
-                best_min_iden = min_iden
-
-        if best_id is None:
-            raise ValueError('No best PDB found.')
-
-        # Get the pdb_structure from rcsb.
-        acc = best_id.split('|')[1]
-        url = 'https://files.rcsb.org/view/' + acc + '.pdb'
-        from urllib.request import Request
-        request = Request(url)
-        with urlopen(request) as f:
-            pdb_structure = cls.from_pdb_file(f)
-
-        pdb_structure.renumber(query_str)
-
-        return pdb_structure
-    '''
 
     @classmethod
     def from_pdb_file(
@@ -461,8 +534,8 @@ class _PDBStructure:
             atom = Atom.from_line(line)
             if atom.chain != chain:
                 continue
-            if curr_atoms and curr_atoms[0].res_seq_num != atom.res_seq_num:
-                aa = AminoAcid.from_atoms(curr_atoms)
+            if curr_atoms and curr_atoms[0].res_index != atom.res_index:
+                aa = AminoAcid(curr_atoms)
                 amino_acids.append(aa)
                 curr_atoms = [atom]
             else:
@@ -472,14 +545,22 @@ class _PDBStructure:
             f.close()
 
         if curr_atoms:
-            aa = AminoAcid.from_atoms(curr_atoms)
+            aa = AminoAcid(curr_atoms)
             amino_acids.append(aa)
         return cls(amino_acids)
 
     def to_json(self) -> str:
         """Convert structure to JSON string."""
         aa_jsons = [aa.to_json() for aa in self.amino_acids]
-        return json.dumps([aa_jsons, self.is_renumbered])
+        try:
+            unre_jsons = [aa.to_json() for aa in self.unrenumbered_amino_acids]
+        except AttributeError:
+            unre_jsons = []
+        try:
+            renum_seq = self.renumbering_seq
+        except AttributeError:
+            renum_seq = None
+        return json.dumps([aa_jsons, unre_jsons, renum_seq])
 
     @classmethod
     def from_json(cls, in_json: str) -> '_PDBStructure':
@@ -496,10 +577,14 @@ class _PDBStructure:
         >>> s2 = PDBStructure.from_json(in_str)
         >>> # Show s1 and s2 are the same.
         >>> for aa1, aa2 in zip(s1.amino_acids, s2.amino_acids):
-        >>>     assert aa1.res_name == aa2.res_name
-        >>>     assert aa1.res_seq_num == aa2.res_seq_num
+        >>>     assert aa1.name == aa2.name
+        >>>     assert aa1.index == aa2.index
 
         """
-        aa_jsons, is_renumbered = json.loads(in_json)
+        aa_jsons, unre_jsons, renumbering_seq = json.loads(in_json)
         amino_acids = [AminoAcid.from_json(aa_json) for aa_json in aa_jsons]
-        return cls(amino_acids, is_renumbered)
+        unrenumbered = [AminoAcid.from_json(aa_json) for aa_json in unre_jsons]
+        if not unrenumbered:
+            unrenumbered = None
+        print(unrenumbered, renumbering_seq)
+        return cls(amino_acids, unrenumbered, renumbering_seq)

@@ -1,3 +1,5 @@
+# File outdated, but included for future CLI configuration.
+
 # which steps to exclude during run.
 # example: [1, 2] to only run steps 3 and 4
 excluded_steps: [1, 2]

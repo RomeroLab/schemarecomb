@@ -1,3 +1,8 @@
+"""Truncates bgl3_full fixtures for faster runtime.
+
+TODO: Maybe this should be a pytest fixture?
+"""
+
 import sys
 
 from Bio import SeqIO, SeqRecord

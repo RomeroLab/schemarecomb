@@ -19,8 +19,8 @@ Primary Classes
     PDBStructure
 
 
-Additional modules
-==================
+Additional Modules and Functions
+================================
 
 .. autosummary::
     :toctree: generated/

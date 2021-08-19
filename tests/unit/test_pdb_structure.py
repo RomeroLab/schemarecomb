@@ -209,6 +209,10 @@ class TestPDBStructure:
         for contact in renum_pdb.contacts:
             assert contact in pdb_contacts
 
+        # Derenumbering when not renumbered.
+        with pytest.raises(AttributeError):
+            pdb.derenumber()
+
     def test_double_renum(self, bgl3_fasta_filename, amino_acid_list):
         """Same as test_renumbering but double renum with two reduced p1."""
         pdb = PDBStructure(amino_acid_list)

@@ -120,11 +120,17 @@ class Atom:
 
         Parameters:
             line: ATOM line from PDB file.
+
+        Returns:
+            Atom constructed from line.
+
+        Raises:
+            ValueError: If line has more than one newline, a newline not at the
+                end of the line, first characters that are not "ATOM", or more
+                than one occurence of ATOM, or if an Atom cannot otherwise
+                be constructed from the line.
+
         """
-
-        # if not line:
-        #     raise ValueError('Empty line passed into constructor.')
-
         num_newlines = line.count('\n')
         if num_newlines > 1 or (num_newlines == 1 and line[-1] != '\n'):
             raise ValueError('More than one line passed into constructor.')
@@ -162,6 +168,7 @@ class Atom:
 
         Returns:
             str of ATOM line in PDB file format.
+
         """
         line = list('ATOM') + [' ' for _ in range(75)]
         line[6:11] = str(self.serial_num).rjust(5)
@@ -207,6 +214,12 @@ class AminoAcid:
         coords: x, y, and z coordinates of each atom in a Nx3 numpy ndarray,
             where N is the number of atoms.
 
+    Raises:
+        ValueError: During initialization, if the list is empty or atoms do not
+            all have the same res_name and res_index.
+        AttributeError: If AminoAcid has not been renumbered and orig_index is
+            accessed.
+
     """
     def __init__(self, atoms: list[Atom]):
         if not atoms:
@@ -225,7 +238,7 @@ class AminoAcid:
         self.index = res_index
 
     @property
-    def letter(self):
+    def letter(self) -> str:
         three_letters = self.name[0] + self.name[1:].lower()
         return seq1(three_letters)
 
@@ -255,12 +268,18 @@ class AminoAcid:
         Parameters:
             lines: ATOM lines in a PDB file.
 
+        Returns:
+            AminoAcid constructed from lines.
+
         """
         atoms = [Atom.from_line(line) for line in lines]
         return cls(atoms)
 
     def to_lines(self) -> list[str]:
         """Convert to section of PDB ATOM lines.
+
+        Returns:
+            PDB format line for each of the AminoAcid's atoms.
 
         Note:
             This method does not save the orig_index attribute.
@@ -295,6 +314,9 @@ class AminoAcid:
             in_json: JSON-formatted input string of a list that contains a list
                 of ATOM lines and orig_index, the latter of which may be null.
 
+        Returns:
+            AminoAcid constucted from input JSON string.
+
         """
         lines, orig_index = json.loads(in_json)
         obj = cls.from_lines(lines)
@@ -304,6 +326,9 @@ class AminoAcid:
 
     def to_json(self) -> str:
         """JSON to_lines wrapper that includes orig_index.
+
+        Returns:
+            JSON string representing the AminoAcid.
 
         Example:
          >>> from ggrecomb import _PDBStructure
@@ -365,6 +390,14 @@ class _PDBStructure:
         contacts: Indices of contacting residues, where a pair of residues are
             contacting if the shortest distance between them is less than 4.5
             angstroms.
+
+    Raises:
+        ValueError: During initialization, if input amino_acids have non-unique
+            indicies, unrenumbered_amino_acids is an empty list,
+            renumbering_seq does not match amino_acids, or one but not both of
+            unrenumbered_amino_acids and renumbering_seq is None.
+        AttributeError: If PDBStructure is not renumbered and
+            unrenumbered_amino_acids or renumbering_seq is accessed.
 
     """
 
@@ -490,8 +523,13 @@ class _PDBStructure:
         if hasattr(self, '_contacts'):
             del self._contacts
 
-    def derenumber(self):
-        """Revert any changes made by the renumber method back to original."""
+    def derenumber(self) -> None:
+        """Revert any changes made by the renumber method back to original.
+
+        Raises:
+            AttributeError: If PDBStructure is not renumbered.
+
+        """
         try:
             unrenumbered_amino_acids = self.unrenumbered_amino_acids
             del self.unrenumbered_amino_acids
@@ -517,6 +555,10 @@ class _PDBStructure:
         Parameters:
             f: file-like PDB structure.
             chain: Chain to include in constructed object.
+
+        Returns:
+            PDBStructure initialized from PDB file.
+
         """
         if isinstance(f, str) or isinstance(f, Path):
             f = open(f)
@@ -550,14 +592,19 @@ class _PDBStructure:
         return cls(amino_acids)
 
     def to_json(self) -> str:
-        """Convert structure to JSON string."""
+        """Convert structure to JSON string.
+
+        Returns:
+            JSON string representing the PDBStructure.
+
+        """
         aa_jsons = [aa.to_json() for aa in self.amino_acids]
         try:
             unre_jsons = [aa.to_json() for aa in self.unrenumbered_amino_acids]
         except AttributeError:
             unre_jsons = []
         try:
-            renum_seq = self.renumbering_seq
+            renum_seq: Optional[str] = self.renumbering_seq
         except AttributeError:
             renum_seq = None
         return json.dumps([aa_jsons, unre_jsons, renum_seq])
@@ -568,6 +615,9 @@ class _PDBStructure:
 
         Parameters:
             in_json: JSON string representing a PDBStructure instance.
+
+        Returns:
+            PDBStructure constructed from JSON string.
 
         Example::
 
@@ -583,8 +633,10 @@ class _PDBStructure:
         """
         aa_jsons, unre_jsons, renumbering_seq = json.loads(in_json)
         amino_acids = [AminoAcid.from_json(aa_json) for aa_json in aa_jsons]
-        unrenumbered = [AminoAcid.from_json(aa_json) for aa_json in unre_jsons]
-        if not unrenumbered:
+        unrenumbered: Optional[list[AminoAcid]]
+        if unre_jsons:
+            unrenumbered = [AminoAcid.from_json(aa_json) for aa_json
+                            in unre_jsons]
+        else:
             unrenumbered = None
-        print(unrenumbered, renumbering_seq)
         return cls(amino_acids, unrenumbered, renumbering_seq)

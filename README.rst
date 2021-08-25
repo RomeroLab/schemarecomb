@@ -28,7 +28,8 @@ With this simple script, we generated a three parent, eight block chimeric P450 
 Installation
 ------------
 
-::
+.. code-block:: bash
+
     pip install ggrecomb
 
 
@@ -36,6 +37,7 @@ Documentation
 -------------
 
 Package reference material and helpful guides can be found at::
+
     <insert read the docs link>
 
 
@@ -43,4 +45,5 @@ Citing
 ------
 
 If you use ggrecomb in a scientific publication, please cite it as::
+
     <insert citation format>

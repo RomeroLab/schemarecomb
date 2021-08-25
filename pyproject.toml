@@ -12,6 +12,7 @@ mypy = "^0.910"
 
 [tool.poetry.dev-dependencies]
 pytest = '^6.2.4'
+pytest-mock = '^3.6.1'
 sphinx = '^4.0.1'
 
 # [tool.poetry.scripts]

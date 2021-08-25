@@ -15,15 +15,16 @@ Primary Classes
     :toctree: generated/
     :template: class.rst
 
-    ParentAlignment
+    ParentSequences
     PDBStructure
 
 
-Additional Modules and Functions
-================================
+Additional Modules
+==================
 
 .. autosummary::
     :toctree: generated/
     :template: module.rst
 
+    parent_alignment
     pdb_structure

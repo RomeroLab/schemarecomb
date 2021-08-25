@@ -80,7 +80,7 @@ class Atom:
 
     Initalization parameters and attributes are equivalent for this class.
 
-    Attributes:
+    Parameters:
         serial_num: Atom serial number.
         name: Atom name.
         alt_loc: Alternate location indicator.
@@ -379,17 +379,18 @@ class _PDBStructure:
             unrenumbered_amino_acids is None.
 
     Attributes:
-        amino_acids: Residues in the PDB structure.
-        unrenumbered_amino_acids: Original amino_acids not including in the
-            renumbering. Only present if structure is renumbered.
-        renumbering_seq: Sequence that was used to renumber structure. Only
-            present if structure is renumbered.
-        seq: Amino acid sequence of structure, including gaps based on the
-            indices of the amino_acids. Note that this attribute will change
-            if renumbering occurs.
-        contacts: Indices of contacting residues, where a pair of residues are
-            contacting if the shortest distance between them is less than 4.5
-            angstroms.
+        amino_acids: (list[AminoAcid]): Residues in the PDB structure.
+        unrenumbered_amino_acids (list[AminoAcid]): Original amino_acids not
+            included in the renumbering. Present if and only if structure is
+            renumbered.
+        renumbering_seq (str): Sequence that was used to renumber structure.
+            Present if and only if structure is renumbered.
+        seq (str): Amino acid sequence of structure, including gaps based on
+            the indices of the amino_acids. Note that this attribute will
+            change if renumbering occurs.
+        contacts (list[tuple[int, int]]): Indices of contacting residues, where
+            a pair of residues are contacting if the shortest distance between
+            them is less than 4.5 angstroms.
 
     Raises:
         ValueError: During initialization, if input amino_acids have non-unique
@@ -423,9 +424,6 @@ class _PDBStructure:
         # renumbering_seq must both be not None.
         if unrenumbered_amino_acids is not None \
            and renumbering_seq is not None:
-            if not unrenumbered_amino_acids:
-                raise ValueError('unrenumbered_amino_acids must not be empty.')
-
             if any(aa.letter != renumbering_seq[aa.index] for aa
                    in amino_acids):
                 raise ValueError(f'renumbering seq "{renumbering_seq}" is '
@@ -433,8 +431,8 @@ class _PDBStructure:
 
             self.unrenumbered_amino_acids = unrenumbered_amino_acids
             self.renumbering_seq = renumbering_seq
-        elif not (unrenumbered_amino_acids is None
-                  and renumbering_seq is None):
+        elif unrenumbered_amino_acids is not None \
+                or renumbering_seq is not None:
             raise ValueError('Unrenumbered_amino_acids and renumbering_seq '
                              'must both be None if one is None.')
 
@@ -456,8 +454,6 @@ class _PDBStructure:
                 a1 = aa_coords[ii]
                 a2 = aa_coords[j]
                 d = distance.cdist(a1, a2)
-                if (ii, j) == (12, 251) or (j, ii) == (12, 251):
-                    print(d)
                 if np.any(d < 4.5):
                     contacts.append((ii, j))
                     contacts.append((j, ii))
@@ -511,7 +507,7 @@ class _PDBStructure:
                     parent_index += 1
                 else:
                     # In pdb but not p1, include in unrenumbered_amino_acids.
-                    print(f'warning: residue {i} in pdb but not parent.')
+                    # print(f'warning: residue {i} in pdb but not parent.')
                     unrenumbered_amino_acids.append(candidate_aa)
             elif par_aa != '.':
                 # Not in pdb, but in p1, increment parent_index.
@@ -599,10 +595,11 @@ class _PDBStructure:
 
         """
         aa_jsons = [aa.to_json() for aa in self.amino_acids]
+        unre_jsons: Optional[list[str]]
         try:
             unre_jsons = [aa.to_json() for aa in self.unrenumbered_amino_acids]
         except AttributeError:
-            unre_jsons = []
+            unre_jsons = None
         try:
             renum_seq: Optional[str] = self.renumbering_seq
         except AttributeError:
@@ -634,9 +631,9 @@ class _PDBStructure:
         aa_jsons, unre_jsons, renumbering_seq = json.loads(in_json)
         amino_acids = [AminoAcid.from_json(aa_json) for aa_json in aa_jsons]
         unrenumbered: Optional[list[AminoAcid]]
-        if unre_jsons:
+        if unre_jsons is None:
+            unrenumbered = None
+        else:
             unrenumbered = [AminoAcid.from_json(aa_json) for aa_json
                             in unre_jsons]
-        else:
-            unrenumbered = None
         return cls(amino_acids, unrenumbered, renumbering_seq)

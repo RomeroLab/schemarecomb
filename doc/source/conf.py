@@ -51,7 +51,7 @@ templates_path = ['templates']
 # This pattern also affects html_static_path and html_extra_path.
 # exclude_patterns = ['templates']
 
-autodoc_typehints = 'description'
+autodoc_typehints = 'both'
 autodoc_typehints_description_target = 'documented'
 # autodoc_default_options = {"members": True, "inherited-members": True}
 autodoc_member_order = 'bysource'
@@ -69,7 +69,7 @@ def setup(app):
     # need to assign the names here, otherwise autodoc won't document these
     # classes, # and will instead just say 'alias of ...'
     ggrecomb.PDBStructure.__name__ = 'PDBStructure'
-    ggrecomb.ParentAlignment.__name__ = 'ParentAlignment'
+    ggrecomb.ParentSequences.__name__ = 'ParentSequences'
 
 
 # Changes autoclass "variables" to "attributes".

@@ -88,9 +88,6 @@ class TestAminoAcid:
         for input_lines in index_to_atom_lines.values():
             aa = AminoAcid.from_lines(input_lines)
             output_lines = aa.to_lines()
-            print(input_lines)
-            print(output_lines)
-            print()
             assert all(i == o for i, o in zip(input_lines, output_lines))
 
     def test_invalid_lines(self):

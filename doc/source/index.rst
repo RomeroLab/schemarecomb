@@ -24,11 +24,12 @@ Here's a simple example::
   min_block_len = 40  # min length of chimeric blocks
   max_block_len = 80  # max length of chimeric blocks
 
-  # Create a parent alignment.
-  p_aln = ggrecomb.ParentAlignment.from_fasta(parent_fn)
+  # Create a parent alignment and get the closest PDB structure.
+  parents = ggrecomb.ParentSequences.from_fasta(parent_fn, auto_align=True)
+  parents.get_PDB()
 
   # Run SCHEMA-RASPP to get libraries.
-  raspp = ggrecomb.RASPP(p_aln, num_blocks)
+  raspp = ggrecomb.RASPP(parents, num_blocks)
   libraries = raspp.vary_m_proxy(min_block_len, max_block_len)
 
   # Auto-select the best library and save the resulting DNA fragments.

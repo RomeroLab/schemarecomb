@@ -1,0 +1,4 @@
+# This file is required since we use ReadTheDocs services.
+# If it is not used, feel free to delete it.
+
+sphinx==4.1.2

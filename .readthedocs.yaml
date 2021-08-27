@@ -1,0 +1,16 @@
+version: 2
+
+build:
+  image: testing
+
+python:
+  version: 3.9
+  install:
+    - method: pip
+      path: .
+      extra_requirements:
+        - doc
+
+sphinx:
+  configuration: 'doc/source/conf.py'
+  fail_on_warning: true

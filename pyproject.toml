@@ -5,12 +5,13 @@ description = 'Design recombinant protein libraries for Golden Gate Assembly.'
 authors = ['Bennett Bremer <bennettjamesbremer@gmail.com>']
 
 [tool.poetry.dependencies]
-python = '3.9'
+python = '~3.9.1'
 biopython = '^1.79'
 scipy = '^1.6.3'
-mypy = "^0.910"
 
 [tool.poetry.dev-dependencies]
+flake8 = "^3.9.2"
+mypy = "^0.910"
 pytest = '^6.2.4'
 pytest-mock = '^3.6.1'
 sphinx = '^4.0.1'

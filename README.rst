@@ -1,18 +1,4 @@
-.. ggrecomb documentation master file, created by
-   sphinx-quickstart on Thu Jul 29 16:15:20 2021.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
-
-Welcome to ggrecomb's documentation!
-====================================
-
 With ggrecomb, you can design easy-to-use recombinant protein libraries, even if you aren't a computational expert.
-
-
-Usage
------
-
-ggrecomb provides the flexibility to customize recombinant library design with a number of options. Check out the :ref:`Biologist's Guide<biologists>` if you're comfortable with recombinant protein library design but want to be guided through using the library. Conversely, users with computational expertise but limited biological experience should read the :ref:`Programmer's Guide<programmers>`. Finally, if you know what you're doing, glance at the :ref:`Quickstart <quickstart>` document and look at the :ref:`Reference Manual<reference>` as needed.
 
 Here's a simple example::
 
@@ -39,22 +25,28 @@ Here's a simple example::
 With this simple script, we generated a three parent, eight block chimeric P450 library. The saved DNA fragments can be ordered directly from a DNA synthesis provider and assembled with `NEB's Golden Gate Assembly Kit <https://www.neb.com/products/e1601-neb-golden-gate-assembly-mix>`_. There's no worrying about adding restriction sites since ggrecomb automatically adds BsaI sites.
 
 
-Contents
---------
+Installation
+------------
 
-.. toctree::
-   :maxdepth: 2
-    
-   quickstart
-   install
-   biologists
-   programmers
-   reference
+.. code-block:: bash
+
+    pip install ggrecomb
 
 
-Indices and tables
-------------------
+Documentation
+-------------
 
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+Package reference material and helpful guides can be found at:
+
+    https://ggrecomb.readthedocs.io/en/latest/
+
+
+Citing
+------
+
+..
+    https://www.software.ac.uk/how-cite-software?_ga=1.54830891.1882560887.1489012280
+
+If you use ggrecomb in a scientific publication, please cite it as::
+
+    Bremer, B. & Romero, P. (2021). ggrecomb [Software]. Available from https://github.com/RomeroLab/ggrecomb.

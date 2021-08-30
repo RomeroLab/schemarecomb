@@ -1,6 +1,6 @@
 [tool.poetry]
 name = 'ggrecomb'
-version = '0.0.1'
+version = '0.0.3'
 description = 'Design recombinant protein libraries for Golden Gate Assembly.'
 authors = ['Bennett Bremer <bennettjamesbremer@gmail.com>']
 
@@ -15,6 +15,11 @@ mypy = "^0.910"
 pytest = '^6.2.4'
 pytest-mock = '^3.6.1'
 sphinx = '^4.0.1'
+
+[tool.poetry.urls]
+"Download" = "https://pypi.org/project/ggrecomb"
+"Source Code" = "https://github.com/RomeroLab/ggrecomb"
+"Documentation" = "https://ggrecomb.readthedocs.io/en/latest"
 
 # [tool.poetry.scripts]
 # ggrecom = {reference = "bin/ggrecom", type="file"}

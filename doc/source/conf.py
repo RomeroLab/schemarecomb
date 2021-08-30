@@ -33,7 +33,8 @@ release = '0.0.1'
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.napoleon',
-    'sphinx.ext.autosummary'
+    'sphinx.ext.autosummary',
+    'sphinx_autodoc_typehints'
 ]
 napoleon_use_ivar = True
 
@@ -51,10 +52,12 @@ templates_path = ['templates']
 # This pattern also affects html_static_path and html_extra_path.
 # exclude_patterns = ['templates']
 
-autodoc_typehints = 'both'
+# autodoc_typehints = 'both'
 autodoc_typehints_description_target = 'documented'
 # autodoc_default_options = {"members": True, "inherited-members": True}
 autodoc_member_order = 'bysource'
+
+set_type_checking_flag = True
 
 # -- Options for HTML output -------------------------------------------------
 

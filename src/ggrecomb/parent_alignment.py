@@ -31,7 +31,6 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
 import ggrecomb
-from ggrecomb import PDBStructure
 
 
 def calc_identity(sr1: SeqRecord, sr2: SeqRecord) \
@@ -554,7 +553,7 @@ class _ParentSequences:
             pdb_structure attribute if present.
         p0_aligned (str): records[0] aligned, calculated from alignment.
             Present if and only if instance is aligned.
-        pdb_structure (PDBStructure): Protein Data Bank structure that
+        pdb_structure (ggrecomb.PDBStructure): Protein Data Bank structure that
             represents the three-dimensional structure of the aligned parent
             sequences.
 
@@ -628,7 +627,7 @@ class _ParentSequences:
     def __init__(
         self,
         records: list[SeqRecord],
-        pdb_structure: Optional['PDBStructure'] = None,
+        pdb_structure: Optional['ggrecomb.PDBStructure'] = None,
         auto_align: bool = False,
         prealigned: bool = False
     ) -> None:
@@ -641,7 +640,7 @@ class _ParentSequences:
 
         self.records = records
 
-        self.pdb_structure: 'PDBStructure'
+        self.pdb_structure: 'ggrecomb.PDBStructure'
         if pdb_structure is not None:
             self.pdb_structure = pdb_structure
 
@@ -669,7 +668,7 @@ class _ParentSequences:
             self.pdb_structure.renumber(self.p0_aligned)
 
     @property
-    def alignment(self):
+    def alignment(self) -> None:
         try:
             return self._alignment
         except AttributeError:
@@ -679,7 +678,7 @@ class _ParentSequences:
     def p0_aligned(self):
         return ''.join([aminos[0] for aminos in self.alignment])
 
-    def new_alignment(self, aligned_sequences: list[str]):
+    def new_alignment(self, aligned_sequences: list[str]) -> None:
         """Add aligned sequences from records to instance.
 
         Sets the alignment attribute to the input alignments.
@@ -860,7 +859,7 @@ class _ParentSequences:
         _, acc, chain = best_id.split('|')
         url = 'https://files.rcsb.org/view/' + acc + '.pdb'
         with urlopen(url) as f:
-            pdb_structure = PDBStructure.from_pdb_file(f, chain=chain)
+            pdb_structure = ggrecomb.PDBStructure.from_pdb_file(f, chain=chain)
 
         self.pdb_structure = pdb_structure
 
@@ -907,14 +906,14 @@ class _ParentSequences:
         return json.dumps(out_list)
 
     @classmethod
-    def from_json(cls, in_json: str):
+    def from_json(cls, in_json: str) -> '_ParentSequences':
         """Construct instance from JSON.
 
         Parameters:
             in_json: JSON-formatted string representing a ParentsSequences.
 
         Return:
-            ParentsSequences instance created from in_json.
+            ParentSequences instance created from in_json.
 
         """
         records, alignment, pdb = json.loads(in_json)
@@ -927,7 +926,7 @@ class _ParentSequences:
             seq_records.append(sr)
 
         if pdb is not None:
-            pdb = PDBStructure.from_json(pdb)
+            pdb = ggrecomb.PDBStructure.from_json(pdb)
 
         new_instance = cls(seq_records, pdb)
 

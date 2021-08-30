@@ -21,6 +21,13 @@ sphinx = '^4.0.1'
 "Source Code" = "https://github.com/RomeroLab/ggrecomb"
 "Documentation" = "https://ggrecomb.readthedocs.io/en/latest"
 
+[tool.pytest.ini_options]
+addopts = "--doctest-modules"
+testpaths = [
+    "tests/unit/",
+    "src/ggrecomb/pdb_structure.py"
+]
+
 # [tool.poetry.scripts]
 # ggrecom = {reference = "bin/ggrecom", type="file"}
 

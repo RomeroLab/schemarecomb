@@ -659,14 +659,19 @@ class _PDBStructure:
          >>> pdb_fn = 'tests/fixtures/bgl3_full/1GNX.pdb'
          >>> pdb1 = PDBStructure.from_pdb_file(pdb_fn)
          >>>
+         >>> # Makes a temporary directory that can be cleaned up later. You
+         >>> # can ignore this and just use a string for your filename.
+         >>> tmpdir = getfixture('tmpdir')
+         >>> json_filename = tmpdir / 'pdb_structure.json'
+         >>>
          >>> # Convert pdb into a JSON string and save it.
          >>> json_str = pdb1.to_json()
-         >>> with open('pdb_structure.json', 'w') as f:
+         >>> with open(json_filename, 'w') as f:
          ...     f.write(json_str)
          ...
          305616
          >>> # Load the JSON string and make a new PDBStructure.
-         >>> with open('pdb_structure.json') as f:
+         >>> with open(json_filename) as f:
          ...     in_str = f.read()
          ...
          >>> pdb2 = PDBStructure.from_json(in_str)

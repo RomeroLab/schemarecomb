@@ -7,7 +7,7 @@ import pytest
 
 @pytest.fixture
 def fixture_dir():
-    return Path(os.path.dirname(__file__)) / 'fixtures/'
+    return Path(os.path.dirname(__file__)) / 'tests' / 'fixtures/'
 
 
 @pytest.fixture

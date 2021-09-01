@@ -1,10 +1,5 @@
 import copy
-from io import StringIO
-from typing import Union
-from unittest import mock
-from urllib import request
 
-from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 import pytest
 
@@ -13,20 +8,6 @@ from ggrecomb import ParentSequences
 from ggrecomb import PDBStructure
 
 ggrecomb  # Just to get rid of import not used warning.
-
-
-@pytest.fixture
-def bgl3_records_aln(fixture_dir):
-    fn = fixture_dir / 'bgl3_full' / 'bgl3_sequences_aln.fasta'
-    return list(SeqIO.parse(fn, 'fasta'))
-
-
-@pytest.fixture
-def bgl3_aln_str(bgl3_records_aln):
-    seqs_f = StringIO('')
-    SeqIO.write(bgl3_records_aln, seqs_f, 'fasta')
-    seqs_f.seek(0)
-    return seqs_f.read()
 
 
 @pytest.fixture
@@ -64,203 +45,29 @@ def equal(obj1: ParentSequences, obj2: ParentSequences) -> bool:
     return True
 
 
-def wrap_urlopen(**kwargs):
-    """Factory for patching urlopen."""
-    muscle_url = 'https://www.ebi.ac.uk/Tools/services/rest/muscle/'
-    pdb_url = 'https://files.rcsb.org/'
-    blast_url = 'https://blast.ncbi.nlm.nih.gov/Blast.cgi'
-
-    def muscle_urlopen(url: Union[str, request.Request]):
-        """Mocks MUSCLE queries on EMBI-EBI Web Services."""
-        jobid = 'muscle-R20210823-181055-0384-46911599-p2m'
-
-        if isinstance(url, request.Request):
-            url = url.full_url
-
-        assert muscle_url in url
-
-        if muscle_url + 'run' in url:
-            # Initial run command, starts alignment job.
-            content = jobid.encode()
-        elif url == muscle_url + 'status/' + jobid:
-            # Status checking.
-            content = b'FINISHED'
-        elif url == muscle_url + 'result/' + jobid + '/aln-fasta':
-            # Job finished, get alignment.
-            content = kwargs['aln_str'].encode()
-
-        def fake_read():
-            return content
-
-        http_response = mock.Mock()
-        http_response.read = fake_read
-
-        return http_response
-
-    def pdb_urlopen(url: Union[str, request.Request]):
-        """Mocks Protein Data Bank queries."""
-        # TODO: Finish this
-        if isinstance(url, str):
-            if url == 'https://files.rcsb.org/view/1GNX.pdb':
-                return open(kwargs['bgl3_pdb_filename'], 'rb')
-        else:
-            url = url.full_url
-        raise ValueError('PDB url not handled: ' + url)
-
-    def blast_urlopen(url: Union[str, request.Request]):
-        """Mocks BLAST webtool."""
-        if isinstance(url, str):
-            raise ValueError('blast_urlopen input must be a Request')
-
-        req_data = url._data.decode()
-        data_dict = {}
-        for item in req_data.split('&'):
-            k, v = item.split('=')
-            data_dict[k] = v
-        url = url.full_url
-
-        database_query_size = {'refseq_protein': '10000', 'pdbaa': '100'}
-
-        if data_dict['CMD'] == 'Put':
-            # BLAST init
-            # Only these options supported in mock.
-            assert data_dict['PROGRAM'] == 'blastp'
-            assert data_dict['QUERY'] == kwargs['query_seq']
-
-            database = data_dict['DATABASE']
-            assert data_dict['HITLIST_SIZE'] == database_query_size[database]
-
-            return kwargs['responses'][database]['put']
-
-        if data_dict['CMD'] == 'Get' and data_dict['FORMAT_TYPE'] == 'XML':
-            # Status.
-            database = kwargs['rid_to_database'][data_dict['RID']]
-            return kwargs['responses'][database]['status']
-
-        if data_dict['CMD'] == 'Get' and data_dict['FORMAT_TYPE'] == 'CSV':
-            # Get accessions.
-            database = kwargs['rid_to_database'][data_dict['RID']]
-            assert data_dict['RESULTS_FILE'] == 'on'
-            assert data_dict['DESCRIPTIONS'] == database_query_size[database]
-            assert data_dict['FORMAT_OBJECT'] == 'Alignment'
-            assert data_dict['DOWNLOAD_TEMPL'] == 'Results'
-            assert data_dict['QUERY_INDEX'] == '0'
-            return kwargs['responses'][database]['accessions']
-
-        # Not handled
-        raise ValueError('Unhandled blast query passed in.')
-
-    def urlopen_proxy(url: Union[str, request.Request]):
-        """Based on url, call the appropriate mock function."""
-        # Get url as string.
-        temp_url = url
-        if isinstance(temp_url, request.Request):
-            temp_url = temp_url.full_url
-
-        # Return the right url.
-        if muscle_url in temp_url:
-            return muscle_urlopen(url)
-        elif pdb_url in temp_url:
-            return pdb_urlopen(url)
-        elif blast_url in temp_url:
-            return blast_urlopen(url)
-        else:
-            raise ValueError('URL not handled: ' + temp_url)
-
-    return urlopen_proxy
-
-
-def wrap_efetch(responses, acc_to_database):
-    """Patches Entrez.efetch."""
-    def efetch_proxy(db, id, rettype):
-        assert db == 'protein'
-        assert rettype == 'fasta'
-        q_acc = id.split(',')[0]
-        database = acc_to_database[q_acc]
-        return responses[database]['fasta']
-    return efetch_proxy
-
-
-@pytest.fixture
-def http_dir(fixture_dir):
-    return fixture_dir / 'bgl3_full' / 'http'
-
-
-# For easy updating if queries are remade.
-database_query_dates = {'refseq': '20210622', 'pdb': '20210628'}
-
-
-@pytest.fixture
-def rid_to_database(http_dir):
-    """Maps BLAST RID to database from that run using initial http response."""
-    r_t_d = {}
-    for database, date in database_query_dates.items():
-        fn = http_dir / f'blast_{database}_put_{date}.txt'
-        with open(fn, 'rb') as handle:
-            rid, _ = ggrecomb.parent_alignment._parse_qblast_ref_page(handle)
-        if database == 'refseq':
-            # Patch because refseq filename does not match database query name
-            database = 'refseq_protein'
-        elif database == 'pdb':
-            database = 'pdbaa'
-        r_t_d[rid] = database
-    return r_t_d
-
-
-@pytest.fixture
-def acc_to_database(http_dir):
-    """Map first sequence accession from blast accessions files to database."""
-    a_t_d = {}
-    for database, date in database_query_dates.items():
-        fn = http_dir / f'blast_{database}_accessions_{date}.txt'
-        with open(fn, 'rb') as handle:
-            handle.readline()
-            first_acc_line = handle.readline()
-            fields = first_acc_line.decode().strip().split(',')
-            acc = fields[-1].replace('"', '').replace(')', '')
-        if database == 'refseq':
-            # Patch because refseq filename does not match database query name
-            database = 'refseq_protein'
-        elif database == 'pdb':
-            database = 'pdbaa'
-        a_t_d[acc] = database
-    return a_t_d
-
-
-@pytest.fixture
-def blast_http_responses(http_dir):
-    """Sim HTTP responses from files in http_dir."""
-    def get_response(database, request_type):
-        """Given database and request_type, yield mock HTTP response file."""
-        date = database_query_dates[database]
-        fn = http_dir / f'blast_{database}_{request_type}_{date}.txt'
-        if request_type == 'fasta':
-            yield open(fn)  # Entrez return in text mode.
-        else:
-            yield open(fn, 'rb')
-
-    def get_database_responses(database):
-        """Get the four blast HTTP response type files in dict."""
-        f_dict = {}
-        for request_t in 'put', 'status', 'accessions', 'fasta':
-            f_dict[request_t] = next(get_response(database, request_t))
-        return f_dict
-
-    return get_database_responses
-
-
-@pytest.fixture
-def bgl3_blast_SeqRecords(http_dir):
-    date = database_query_dates['refseq']
-    fn = http_dir / f'blast_refseq_fasta_{date}.txt'
-    return list(SeqIO.parse(fn, 'fasta'))[:10]
-
-
-def test_query_blast(bgl3_records, mocker, blast_http_responses,
-                     rid_to_database, acc_to_database):
+def test_query_blast(bgl3_records, mock_bgl3_blast_query, mocker):
     query_seq = str(bgl3_records[0].seq)
 
+    fake_urlopen, fake_efetch = mock_bgl3_blast_query
+    mocker.patch('ggrecomb.parent_alignment.urlopen', fake_urlopen)
+    mocker.patch('ggrecomb.parent_alignment.Entrez.efetch', fake_efetch)
+
+    blast_fastas = list(ggrecomb.parent_alignment.query_blast(query_seq))
+    assert blast_fastas
+    assert all(isinstance(bf, SeqRecord) for bf in blast_fastas)
+
+    blast_pdb_fastas = list(
+        ggrecomb.parent_alignment.query_blast(query_seq, 'pdbaa', 100)
+    )
+    assert blast_pdb_fastas
+    assert all(isinstance(bpf, SeqRecord) for bpf in blast_pdb_fastas)
+
+
+'''
+def test_query_blast(bgl3_records, mocker, blast_http_responses,
+                     rid_to_database, acc_to_database):
     # patch urlopen for speed
+    query_seq = str(bgl3_records[0].seq)
     refseq_responses = blast_http_responses('refseq')
     pdb_responses = blast_http_responses('pdb')
     responses = {'refseq_protein': refseq_responses, 'pdbaa': pdb_responses}
@@ -291,6 +98,7 @@ def test_query_blast(bgl3_records, mocker, blast_http_responses,
     )
     assert blast_pdb_fastas
     assert all(isinstance(bpf, SeqRecord) for bpf in blast_pdb_fastas)
+'''
 
 
 def test_choose_candidates(bgl3_records, bgl3_blast_SeqRecords):
@@ -338,9 +146,11 @@ class TestParentSequences:
         with pytest.raises(ValueError):
             ParentSequences(bgl3_records, auto_align=True, prealigned=True)
 
-    def test_align(self, bgl3_records, mocker, bgl3_aln_str, bgl3_records_aln):
+    def test_align(self, bgl3_records, mocker, bgl3_parents_aln_str,
+                   bgl3_records_aln,
+                   wrap_urlopen):
         mocker.patch('ggrecomb.parent_alignment.urlopen',
-                     wrap_urlopen(aln_str=bgl3_aln_str))
+                     wrap_urlopen(parents_aln_str=bgl3_parents_aln_str))
         parents = ParentSequences(bgl3_records)
         parents.align()
 
@@ -367,7 +177,8 @@ class TestParentSequences:
         ]
     )
     def test_init(self, bgl3_records, bgl3_records_aln, bgl3_PDBStructure,
-                  pdb, auto_align, prealigned, mocker, bgl3_aln_str):
+                  pdb, auto_align, prealigned, mocker, bgl3_parents_aln_str,
+                  wrap_urlopen):
         if pdb:
             input_pdb = bgl3_PDBStructure
         else:
@@ -381,7 +192,7 @@ class TestParentSequences:
         if auto_align:
             # align method will be called, patch the HTTP call.
             mocker.patch('ggrecomb.parent_alignment.urlopen',
-                         wrap_urlopen(aln_str=bgl3_aln_str))
+                         wrap_urlopen(parents_aln_str=bgl3_parents_aln_str))
 
         parents = ParentSequences(input_records, input_pdb, auto_align,
                                   prealigned)
@@ -429,7 +240,7 @@ class TestParentSequences:
                     pdb_struct.renumbering_seq
 
     def test_attr_pdb(self, bgl3_records, bgl3_records_aln, bgl3_PDBStructure,
-                      mocker, bgl3_aln_str):
+                      mocker, bgl3_parents_aln_str, wrap_urlopen):
         """Test attribute changes starting with pdb."""
         # Unaligned, no PDB.
         parents = ParentSequences(bgl3_records)
@@ -457,7 +268,7 @@ class TestParentSequences:
 
         # Calling align method, patch HTTP call.
         mocker.patch('ggrecomb.parent_alignment.urlopen',
-                     wrap_urlopen(aln_str=bgl3_aln_str))
+                     wrap_urlopen(parents_aln_str=bgl3_parents_aln_str))
 
         # align(), then new_alignment.
         parents.align()
@@ -521,7 +332,9 @@ class TestParentSequences:
         parents.obtain_seqs(8)
 
     def test_get_PDB(self, bgl3_records, mocker, fixture_dir,
-                     blast_http_responses, rid_to_database, acc_to_database):
+                     bgl3_parents_aln_str, blast_http_responses,
+                     rid_to_database, acc_to_database, wrap_urlopen,
+                     wrap_efetch, bgl3_pdb_filename):
         # We already tested list(query_blast(query_str, 'pdbaa', 100)) with
         # the bgl3 query_seq in test_query_blast, so we can patch it to
         # instantly return the result.
@@ -534,12 +347,11 @@ class TestParentSequences:
             'refseq_protein': refseq_responses,
             'pdbaa': pdb_responses
         }
-        bgl3_pdb_filename = fixture_dir / 'bgl3_full' / '1GNX.pdb'
         mocker.patch(
             'ggrecomb.parent_alignment.urlopen',
             wrap_urlopen(
                 query_seq=query_seq,
-                aln_str=bgl3_aln_str,
+                parents_aln_str=bgl3_parents_aln_str,
                 responses=responses,
                 rid_to_database=rid_to_database,
                 bgl3_pdb_filename=bgl3_pdb_filename
@@ -560,13 +372,14 @@ class TestParentSequences:
         parents.get_PDB()
         assert isinstance(parents.pdb_structure, PDBStructure)
 
-    def test_json(self, bgl3_records, bgl3_PDBStructure, mocker, bgl3_aln_str):
+    def test_json(self, bgl3_records, bgl3_PDBStructure, mocker,
+                  bgl3_parents_aln_str, wrap_urlopen):
 
         # mock urlopen for muscle call
         mocker.patch(
             'ggrecomb.parent_alignment.urlopen',
             wrap_urlopen(
-                aln_str=bgl3_aln_str,
+                parents_aln_str=bgl3_parents_aln_str,
             )
         )
 

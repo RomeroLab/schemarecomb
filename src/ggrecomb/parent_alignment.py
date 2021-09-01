@@ -568,15 +568,19 @@ class _ParentSequences:
         will build a six-parents ParentAlignment with roughly 70% identity
         between the parents and the PDB structure closest to the parents.
 
+        >>> getfixture('bgl3_mock_namespace')
         >>> from ggrecomb import ParentSequences
-        >>> parents = ParentSequences.from_fasta('bgl3_sequence.fasta')
+        >>> fn = 'tests/fixtures/bgl3_single/bgl3_p0.fasta'
+        >>> parents = ParentSequences.from_fasta(fn)
         >>> parents.obtain_seqs(6, 0.7)  # BLAST takes about 10 minutes.
+        >>> # [sr.name for sr in parents.records]
         >>> parents.align()  # MUSCLE takes about a minute.
         >>> parents.get_PDB()  # BLAST takes about 10 minutes.
         >>> len(parents.records)
         6
-        >>> parents.p0_aligned  # doctest: +ELLIPSIS
-        'MHHHHHHMVPAAQQTAMA...RTGVLPTA-------'
+        >>> # The following output is shortened for clarity.
+        >>> parents.p0_aligned  #doctest: +ELLIPSIS
+        '----------------------MHHHHHHMVPAAQQ...WYAEVARTGVLPTA'
         >>> parents.p0_aligned == parents.pdb_structure.renumbering_seq
         True
 
@@ -586,16 +590,18 @@ class _ParentSequences:
 
         >>> from ggrecomb import ParentSequences
         >>> from ggrecomb import PDBStructure
-        >>> pdb = PDBStructure.from_pdb_file('1GNX.pdb')
+        >>> pdb_fn = 'tests/fixtures/bgl3_full/1GNX.pdb'
+        >>> parents_fn = 'tests/fixtures/bgl3_full/bgl3_sequences_aln.fasta'
+        >>> pdb = PDBStructure.from_pdb_file(pdb_fn)
         >>> parents = ParentSequences.from_fasta(
-        ...     'bgl3_aligned_parents.fasta',
+        ...     parents_fn,
         ...     pdb_structure=pdb,
         ...     prealigned=True
         ... )
         >>> len(parents.records)
         6
-        >>> parents.p0_aligned  # doctest: +ELLIPSIS
-        'MHHHHHHMVPAAQQTAMA...RTGVLPTA-------'
+        >>> parents.p0_aligned  #doctest: +ELLIPSIS
+        'MHHHHHHMVPAAQQTAMA...RTGVLPTA-----'
         >>> parents.p0_aligned == parents.pdb_structure.renumbering_seq
         True
 
@@ -603,18 +609,22 @@ class _ParentSequences:
 
         >>> from ggrecomb import ParentSequences
         >>> from ggrecomb import PDBStructure
-        >>> pdb = PDBStructure.from_pdb_file('1GNX.pdb')
+        >>> tempdir = getfixture('tmpdir')  # pytest jargon, ignore this.
+        >>> pdb_fn = 'tests/fixtures/bgl3_full/1GNX.pdb'
+        >>> parents_fn = 'tests/fixtures/bgl3_full/bgl3_sequences_aln.fasta'
+        >>> pdb = PDBStructure.from_pdb_file(pdb_fn)
         >>> parents = ParentSequences.from_fasta(
-        ...     'bgl3_aligned_parents.fasta',
+        ...     parents_fn,
         ...     pdb_structure=pdb,
         ...     prealigned=True
         ... )
+        >>> parents_fn = tempdir / 'parents.json'
         >>> parents_json = parents.to_json()
-        >>> with open('parents.json', 'w') as f:
+        >>> with open(parents_fn, 'w') as f:
         ...     f.write(parents_json)
         ...
         339501
-        >>> with open('parents.json', 'r') as f:
+        >>> with open(parents_fn, 'r') as f:
         ...     parents_json2 = f.read()
         ...
         >>> parents2 = ParentSequences.from_json(parents_json2)

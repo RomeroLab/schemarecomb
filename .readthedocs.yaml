@@ -6,10 +6,7 @@ build:
 python:
   version: 3.9
   install:
-    - method: pip
-      path: .
-      extra_requirements:
-        - doc
+    - requirements: doc/requirements.txt
 
 sphinx:
   configuration: 'doc/source/conf.py'

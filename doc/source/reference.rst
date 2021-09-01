@@ -16,6 +16,7 @@ Primary Classes
     :template: class.rst
 
     ParentSequences
+
     PDBStructure
 
 
@@ -26,5 +27,9 @@ Additional Modules
     :toctree: generated/
     :template: module.rst
 
+    energy_functions
+
     parent_alignment
+    
     pdb_structure
+

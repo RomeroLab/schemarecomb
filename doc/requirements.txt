@@ -2,3 +2,4 @@
 # If it is not used, feel free to delete it.
 
 sphinx==4.1.2
+sphinx-autodoc-typehints==1.12.0

@@ -158,7 +158,7 @@ class TestParentSequences:
         exp_alignment = zip(*[str(rec.seq) for rec in bgl3_records_aln])
         assert all(p == a for p, a in zip(parents.alignment, exp_alignment))
 
-        # Test resulting ParentAlignment against prealigned.
+        # Test resulting ParentSequences against prealigned.
         parents_aln = ParentSequences(bgl3_records_aln, prealigned=True)
         assert parents.alignment == parents_aln.alignment
         # But the records are different.

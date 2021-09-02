@@ -12,7 +12,9 @@ With ggrecomb, you can design easy-to-use recombinant protein libraries, even if
 Usage
 -----
 
-ggrecomb provides the flexibility to customize recombinant library design with a number of options. Check out the :ref:`Biologist's Guide<biologists>` if you're comfortable with recombinant protein library design but want to be guided through using the library. Conversely, users with computational expertise but limited biological experience should read the :ref:`Programmer's Guide<programmers>`. Finally, if you know what you're doing, glance at the :ref:`Quickstart <quickstart>` document and look at the :ref:`Reference Manual<reference>` as needed.
+..
+  ggrecomb provides the flexibility to customize recombinant library design with a number of options. Check out the :ref:`Biologist's Guide<biologists>` if you're comfortable with recombinant protein library design but want to be guided through using the library. Conversely, users with computational expertise but limited biological experience should read the :ref:`Programmer's Guide<programmers>`. Finally, if you know what you're doing, glance at the :ref:`Quickstart <quickstart>` document and look at the :ref:`Reference Manual<reference>` as needed.
+
 
 Here's a simple example::
 
@@ -37,6 +39,10 @@ Here's a simple example::
   best_lib.save('library_dna_fragments.fasta')
 
 With this simple script, we generated a three parent, eight block chimeric P450 library. The saved DNA fragments can be ordered directly from a DNA synthesis provider and assembled with `NEB's Golden Gate Assembly Kit <https://www.neb.com/products/e1601-neb-golden-gate-assembly-mix>`_. There's no worrying about adding restriction sites since ggrecomb automatically adds BsaI sites.
+
+View the :ref:`Quickstart Guide <quickstart>` for more example scripts and the :ref:`Reference Manual <reference>` for more details on specific classes and modules.
+
+Biologist's, Programmer's, and Installation guides coming in version 0.2.0.
 
 
 Contents

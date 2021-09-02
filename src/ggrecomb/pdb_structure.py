@@ -381,7 +381,7 @@ class _PDBStructure:
     This class is a Python representation of a PDB file, e.g. `1GNX.pdb
     <https://files.rcsb.org/download/1GNX.pdb>`_, which hold protein structure
     data and are downloaded from https://www.rcsb.org. This download may be
-    done automatically with the :meth:`ggrecomb.ParentAlignment.get_PDB` method
+    done automatically with the :meth:`ggrecomb.ParentSequences.get_PDB` method
     or manually. In the latter case, PDBStructure object must also be created
     manually, e.g. using the :meth:`from_pdb_file` class method.
 
@@ -483,11 +483,11 @@ class _PDBStructure:
             return contacts
 
     def renumber(self, p0_aligned: str) -> None:
-        """Renumber pdb structure to match ParentAlignment.
+        """Renumber pdb structure to match a ParentSequences.
 
         Parameters:
             p0_aligned: Sequence to align to. Usually the first parent from
-                a ParentAlignment.
+                a ParentSequences.
 
         """
         # If already renumbered, derenumber to get all amino_acids back.

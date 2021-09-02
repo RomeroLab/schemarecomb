@@ -274,12 +274,19 @@ def bgl3_parents_aln_str(bgl3_records_aln):
 
 @pytest.fixture
 def bgl3_single_aln_str(fixture_dir):
-    fn = fixture_dir / 'bgl3_single/' / 'found_parents_aln.fasta'
+    fn = fixture_dir / 'bgl3_1-parent/' / 'found_parents_aln.fasta'
     records = list(SeqIO.parse(fn, 'fasta'))
     seqs_f = StringIO('')
     SeqIO.write(records, seqs_f, 'fasta')
     seqs_f.seek(0)
     return seqs_f.read()
+
+
+@pytest.fixture
+def bgl3_parent_alignment(bgl3_records_aln, bgl3_pdb_filename):
+    pdb = ggrecomb.PDBStructure.from_pdb_file(bgl3_pdb_filename)
+    parents = ggrecomb.ParentSequences(bgl3_records_aln, pdb, prealigned=True)
+    return parents
 
 
 @pytest.fixture

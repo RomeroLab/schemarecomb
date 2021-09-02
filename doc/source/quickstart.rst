@@ -10,7 +10,7 @@ Quickstart
 
 To get started, you'll need a FASTA file with one or more parent amino acid sequences. If desired, we can find additional parents with BLAST.
 
-Optionally, you can provide a PDB structure file, but otherwise we'll find one that matches the first parent sequence you provided.
+Optionally, you can provide a PDB structure file, but otherwise we'll find one that matches the first parent sequence you provided. See :class:`ggrecomb.PDBStructure` for more details.
 
 .. note::
 
@@ -31,18 +31,18 @@ In a Python script, import ggrecomb::
     import ggrecomb
 
 
-2. Make a ParentAlignment
+2. Make a ParentSequences
 -------------------------
 
 Load your parent FASTA file and find additional parents if needed. For this example, we'll use beta-glucosidase (bgl3, PDB ID 1GNX)::
 
     parent_fn = 'bgl3.fasta'
-    p_aln = ggrecomb.ParentAlignment.from_fasta(parent_fn)
+    p_aln = ggrecomb.ParentSequences.from_fasta(parent_fn)
     p_aln.obtain_seqs(num_final_seqs=4, desired_indentity=0.7)
 
-After running, p_aln is a ParentAlignment with four parents that have about 70% pairwise idenity.
+After running, p_aln is a ParentSequences with four parents that have about 70% pairwise idenity.
 
-See ggrecomb.ParentAlignment (TODO: make this link after refactoring PA docstring) for more options.
+See :class:`ggrecomb.ParentSequences` for more options.
 
 
 3. Run the SCHEMA-RASPP algorithm

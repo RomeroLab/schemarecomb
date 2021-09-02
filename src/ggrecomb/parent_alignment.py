@@ -2,7 +2,7 @@
 
 """Alignments of parental sequences for combinatorial protein libraries.
 
-This module provides the definition of :class:`ggrecomb.ParentAlignment`, which
+This module provides the definition of :class:`ggrecomb.ParentSequences`, which
 represents an alignment of parental protein sequences used in ggrecomb library
 creation. The module can be used directly to use accessory functions for
 calculating identity between sequences, querying the BLAST web interface, or
@@ -565,12 +565,12 @@ class _ParentSequences:
 
         The easiest, but slowest way to use this class is to let it handle
         everything through web services. For example, the following script
-        will build a six-parents ParentAlignment with roughly 70% identity
-        between the parents and the PDB structure closest to the parents.
+        will build a six-parent alignment with roughly 70% identity between the
+        parents and choose the PDB structure closest to the parents.
 
         >>> getfixture('bgl3_mock_namespace')
         >>> from ggrecomb import ParentSequences
-        >>> fn = 'tests/fixtures/bgl3_single/bgl3_p0.fasta'
+        >>> fn = 'tests/fixtures/bgl3_1-parent/bgl3_p0.fasta'
         >>> parents = ParentSequences.from_fasta(fn)
         >>> parents.obtain_seqs(6, 0.7)  # BLAST takes about 10 minutes.
         >>> # [sr.name for sr in parents.records]
@@ -605,7 +605,7 @@ class _ParentSequences:
         >>> parents.p0_aligned == parents.pdb_structure.renumbering_seq
         True
 
-        You can also save or load a ParentAlignment as a JSON:
+        You can also save or load a ParentSequences as a JSON:
 
         >>> from ggrecomb import ParentSequences
         >>> from ggrecomb import PDBStructure
@@ -678,7 +678,7 @@ class _ParentSequences:
             self.pdb_structure.renumber(self.p0_aligned)
 
     @property
-    def alignment(self) -> None:
+    def alignment(self) -> list[tuple[str, ...]]:
         try:
             return self._alignment
         except AttributeError:
@@ -835,7 +835,7 @@ class _ParentSequences:
         self.records += best_cands
 
     def get_PDB(self) -> None:
-        """Construct from ParentAlignment using BLAST and PDB.
+        """Construct from ParentSequences using BLAST and PDB.
 
         The best structure is found by using BLAST to download candidate PDB
         sequences, then the sequence with the largest minimum identity to the

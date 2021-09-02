@@ -19,13 +19,13 @@ import numpy as np
 import ggrecomb
 
 
-class _EnergyFunction:
+class EnergyFunction:
     # TODO: Implement general energy function. (v0.2.0)
     def __init__(self, pa: ggrecomb.ParentSequences):
         raise NotImplementedError
 
 
-class SCHEMA(_EnergyFunction):
+class SCHEMA(EnergyFunction):
     r"""Calculates the energy (approximate fraction functional) of a library.
 
     Given a PDB structure and a multiple sequence alignment, the SCHEMA energy

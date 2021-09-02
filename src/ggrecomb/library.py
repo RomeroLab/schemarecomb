@@ -10,7 +10,7 @@ parent alignment is recombined into chimeras.
 from functools import cached_property
 from itertools import combinations
 
-from ggrecomb import ParentAlignment
+from ggrecomb import ParentSequences
 
 
 # @dataclass(repr=False)
@@ -19,7 +19,7 @@ class RecombinantLibrary:
         self,
         energy: float,
         breakpoints: dict[int, list[tuple[int, str]]],
-        parent_alignment: ParentAlignment,
+        parent_alignment: ParentSequences,
         bp_to_group: dict[int, int] = None,
         group_bp_cache: dict[tuple[int, ...], float] = None,
     ):
@@ -46,7 +46,7 @@ class RecombinantLibrary:
     def expand(self, e_diff: float, new_bp: dict[int, list[tuple[int, str]]]):
         new_e = self.energy + e_diff
         new_bps = self.breakpoints | new_bp
-        return type(self)(new_e, new_bps)
+        return type(self)(new_e, new_bps, self.parent_alignment)
 
     def __repr__(self):
         return f'Library({self.energy}, {list(self.breakpoints.keys())})'
@@ -110,7 +110,7 @@ class RecombinantLibrary:
         return m
     '''
 
-    def calc_average_m(self, pa: ParentAlignment, bp_to_group, group_bp_cache):
+    def calc_average_m(self, pa: ParentSequences, bp_to_group, group_bp_cache):
         """Calculate the average number of mutations in library."""
         def sequence_mutations(seq1, seq2):
             """Hamming distance between seq1 and seq2."""
@@ -125,7 +125,7 @@ class RecombinantLibrary:
                 self._m = M
                 return M
 
-        seqs = [str(sr.seq) for sr in pa.aligned_sequences]
+        seqs = list(zip(*pa.alignment))
         blmuts = []
         bps = sorted(self.breakpoints)
         for bp1, bp2 in zip(bps, bps[1:]):

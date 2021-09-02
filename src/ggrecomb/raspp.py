@@ -14,7 +14,7 @@ from typing import NamedTuple, Optional, Type, Union
 
 from ggrecomb.energy_functions import EnergyFunction, SCHEMA
 from ggrecomb.library import RecombinantLibrary
-from ggrecomb import ParentAlignment
+from ggrecomb import ParentSequences
 from ggrecomb import PDBStructure
 
 
@@ -63,7 +63,7 @@ class RASPP:
     """
     def __init__(
             self,
-            parent_aln: ParentAlignment,
+            parent_aln: ParentSequences,
             n: int,
             start_overhang: Optional[tuple[int, str]] = None,
             end_overhang: Optional[tuple[int, str]] = None,
@@ -380,7 +380,7 @@ def _get_valid_patterns(
 
 
 def _calculate_breakpoints(
-    parent_aln: ParentAlignment,
+    parent_aln: ParentSequences,
     codon_options: dict[str, tuple[str, ...]],
     start_overhang: Optional[tuple[int, str]] = None,
     end_overhang: Optional[tuple[int, str]] = None,
@@ -633,7 +633,7 @@ if __name__ == '__main__':
     import sys
 
     loc = '../../tests/bgl3_sample/'
-    pa = ParentAlignment.from_fasta(loc+'bgl3_sequences.fasta')
+    pa = ParentSequences.from_fasta(loc+'bgl3_sequences.fasta')
     pdb = PDBStructure.from_pdb_file(loc+'1GNX.pdb')
     pa.pdb_structure = pdb
 
@@ -645,7 +645,7 @@ if __name__ == '__main__':
     pdb = PDBStructure.from_pdb_file(loc+'trunc.pdb')
     '''
     loc = '../../tests/bgl3_sample/'
-    pa = ParentAlignment.from_fasta(loc+'bgl3_sequences.fasta')
+    pa = ParentSequences.from_fasta(loc+'bgl3_sequences.fasta')
     pdb = PDBStructure.from_pdb_file(loc+'1GNX.pdb')
     pa.pdb_structure = pdb
 

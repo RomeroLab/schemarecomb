@@ -16,13 +16,23 @@ Here's a simple example::
   >>>
   >>> # Run SCHEMA-RASPP to get libraries.
   >>> raspp = ggrecomb.RASPP(parents, num_blocks)
-  >>> libraries = raspp.vary_m_proxy(min_block_len, max_block_len)
+  >>> library_list = raspp.vary_m_proxy(min_block_len, max_block_len)
   >>>
   >>> # Auto-select the best library and save the resulting DNA fragments.
-  >>> best_lib = ggrecomb.LibSelector.auto(libraries)
+  >>> best_lib = ggrecomb.libraries.auto_select(library_list)
   >>> best_lib.save('library_dna_fragments.fasta')
 
 With this simple script, we generated a three parent, eight block chimeric P450 library. The saved DNA fragments can be ordered directly from a DNA synthesis provider and assembled with `NEB's Golden Gate Assembly Kit <https://www.neb.com/products/e1601-neb-golden-gate-assembly-mix>`_. There's no worrying about adding restriction sites since ggrecomb automatically adds BsaI sites.
+
+
+Why Recombinant Proteins?
+-------------------------
+
+Engineering proteins with recombinant libraries has a number of advantages over traditional directed evolution. Primarily, the use of multiple parental sequences results in a more "global" optimization over the protein function space. That is, recombinant libraries are less limited by local optima and environmental dependence when compared to single-gene mutagenesis. Furthermore, the recombinant libraries generally have a greater fraction of functional variants at the same level of diversity. Recombinant variants may also be assembled in isolation if desired, without requiring a transformation. The relative advantages of single-gene mutagenesis, such as fine-grain sequence space exploration, may be mitigated by subjecting a recombinant library to the same mutagenesis techniques.
+
+So why doesn't everybody do recombinant protein engineering? Historically, there's a number of technical challenges that made recombinant libraries impractical for general use. Namely, a great deal of computational expertise and time is needed to manually generate and select suitable libraries. Even with the required computational resources, mutagenesis was significantly easier than assembling 8+ DNA fragments when protein engineering was developing its fundamentals, so nearly everybody opted for traditional directed evolution and passed that practice down to their students and mentees.
+
+The goal of this software package is to make recombinant library design accessible and convenient for protein engineers of all computational skill levels. ggrecomb designs libraries that come ready to order and construct with a simple Golden Gate Assembly reaction. To learn more, read the `ggrecomb documentation <https://ggrecomb.readthedocs.io/en/latest/>`_.
 
 
 Installation
@@ -30,7 +40,7 @@ Installation
 
 .. code-block:: bash
 
-    pip install ggrecomb
+    $ pip install ggrecomb
 
 
 Documentation

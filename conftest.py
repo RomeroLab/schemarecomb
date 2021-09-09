@@ -265,6 +265,14 @@ def bgl3_records_aln(fixture_dir):
 
 
 @pytest.fixture
+def bgl3_parents_aln(bgl3_pdb_filename, bgl3_records_aln):
+    pdb = ggrecomb.PDBStructure.from_pdb_file(bgl3_pdb_filename)
+    parents = ggrecomb.ParentSequences(bgl3_records_aln, pdb_structure=pdb,
+                                       prealigned=True)
+    return parents
+
+
+@pytest.fixture
 def bgl3_parents_aln_str(bgl3_records_aln):
     seqs_f = StringIO('')
     SeqIO.write(bgl3_records_aln, seqs_f, 'fasta')
@@ -350,3 +358,14 @@ def bgl3_mock_namespace(doctest_namespace, mocker, mock_bgl3_blast_query):
     fake_urlopen, fake_efetch = mock_bgl3_blast_query
     mocker.patch('ggrecomb.parent_alignment.urlopen', fake_urlopen)
     mocker.patch('ggrecomb.parent_alignment.Entrez.efetch', fake_efetch)
+
+
+@pytest.fixture
+def AA_C31():
+    return {'A': {'GCT', 'GCA'}, 'R': {'CGT', 'CGA'}, 'N': {'AAT'},
+            'D': {'GAT'}, 'C': {'TGT'}, 'Q': {'CAA', 'CAG'}, 'E': {'GAA'},
+            'G': {'GGT'}, 'H': {'CAT', 'CAC'}, 'I': {'ATT', 'ATC'},
+            'L': {'TTA', 'TTG', 'CTA'}, 'K': {'AAA'}, 'M': {'ATG'},
+            'F': {'TTT'}, 'P': {'CCT', 'CCA'}, 'S': {'AGT', 'TCA'},
+            'T': {'ACA', 'ACT'}, 'W': {'TGG'}, 'Y': {'TAT'},
+            'V': {'GTT', 'GTA'}, '*': {'TGA'}, '-': {'---'}}

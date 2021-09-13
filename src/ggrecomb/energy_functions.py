@@ -20,8 +20,12 @@ import ggrecomb
 
 
 class EnergyFunction:
+    """Abstract class for making energy functions."""
     # TODO: Implement general energy function. (v0.2.0)
-    def __init__(self, pa: ggrecomb.ParentSequences):
+    def __init__(self, parents: ggrecomb.ParentSequences):
+        self.parents = parents
+
+    def import_mod_cls(self) -> tuple[str, str]:
         raise NotImplementedError
 
 
@@ -94,6 +98,7 @@ class SCHEMA(EnergyFunction):
     Attributes:
         E_matrix (np.ndarray): Energy matrix corresponding to input
             ParentSequences' alignment and contacts.
+        parents: Parent sequences for recombination.
 
     Raises:
         ValueError: If input ParentSequences is not aligned or does not have
@@ -129,6 +134,7 @@ class SCHEMA(EnergyFunction):
             E_matrix[i, j] = broken / (len(AAs_i)**2)
 
         self.E_matrix = E_matrix
+        self.parents = parents
 
     def block_energy(self, start: int, end: int) -> float:
         r"""Average SCHEMA energy of adding a block to a library.
@@ -178,3 +184,8 @@ class SCHEMA(EnergyFunction):
         neg = self.E_matrix[start:old_end, old_end].sum()
         pos = self.E_matrix[old_end, new_end:].sum()
         return pos - neg
+
+    @property
+    def import_mod_cls(self) -> tuple[str, str]:
+        """Save module and class so we know how to construct it later."""
+        return self.__module__, type(self).__name__

@@ -29,7 +29,10 @@ Additional Modules
 
     energy_functions
 
+    breakpoints
+
     parent_alignment
     
     pdb_structure
 
+    restriction_enzymes

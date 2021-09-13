@@ -14,7 +14,7 @@ class BreakPoint(NamedTuple):
     chimeric sequences. Also known as "crossover".
 
     Parameters:
-        position: Index within a ParentSequence.alignment where the BreakPoint
+       position: Index within a ParentSequence.alignment where the BreakPoint
             is located. Note carefully that this attribute denotes where a new
             chimeric block begins. The last amino acid of the previous block
             is located at position-1. The Golden Gate sticky ends will overlap
@@ -101,7 +101,7 @@ def calculate_breakpoints(
     codon_options: dict[str, set[str]],
     start_overhangs: Optional[list[tuple[int, str]]] = None,
     end_overhangs: Optional[list[tuple[int, str]]] = None,
-) -> dict[int, BreakPoint]:
+) -> list[BreakPoint]:
     """Calculate the breakpoints for the parent alignment.
 
     Currently supports length four Golden Gate sites.
@@ -168,12 +168,11 @@ def calculate_breakpoints(
     # Sets of codons for each amino acid at an alignment position.
     aln_cdns = [[codon_options[aa] for aa in pos_aas] for pos_aas in alignment]
 
-    breakpoints: dict[int, BreakPoint] = {}
+    breakpoints = []
 
     if start_overhangs is not None:
-        start_index = 0
-        start_bp = BreakPoint(start_index, start_overhangs)
-        breakpoints[start_index] = start_bp
+        start_bp = BreakPoint(0, start_overhangs)
+        breakpoints.append(start_bp)
 
     # Search possible Golden Gate sites by iterating over adjacent codons.
     for bp_index, (cdns1, cdns2) in enumerate(zip(aln_cdns, aln_cdns[1:]), 1):
@@ -202,11 +201,11 @@ def calculate_breakpoints(
             # No valid overhangs, skip.
             continue
 
-        breakpoints[bp_index] = BreakPoint(bp_index, overhangs)
+        bp = BreakPoint(bp_index, overhangs)
+        breakpoints.append(bp)
 
     if end_overhangs is not None:
-        end_index = len(aln_cdns)
-        end_bp = BreakPoint(end_index, end_overhangs)
-        breakpoints[end_index] = end_bp
+        end_bp = BreakPoint(len(aln_cdns), end_overhangs)
+        breakpoints.append(end_bp)
 
     return breakpoints

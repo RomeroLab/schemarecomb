@@ -30,4 +30,5 @@ jobs:
         source .venv/bin/activate
         flake8 src/ggrecomb
         mypy --exclude raspp.py src/ggrecomb
+        mypy tests/unit
         pytest

@@ -3,19 +3,15 @@ import copy
 from Bio.SeqRecord import SeqRecord
 import pytest
 
-import ggrecomb
-from ggrecomb import ParentSequences
-from ggrecomb import PDBStructure
-
-ggrecomb  # Just to get rid of import not used warning.
+import ggrecomb as sr
 
 
 @pytest.fixture
 def bgl3_PDBStructure(bgl3_pdb_filename):
-    return PDBStructure.from_pdb_file(bgl3_pdb_filename)
+    return sr.PDBStructure.from_pdb_file(bgl3_pdb_filename)
 
 
-def equal(obj1: ParentSequences, obj2: ParentSequences) -> bool:
+def equal(obj1: sr.ParentSequences, obj2: sr.ParentSequences) -> bool:
     if obj1.__class__ is not obj2.__class__:
         print('class')
         return False
@@ -52,12 +48,12 @@ def test_query_blast(bgl3_records, mock_bgl3_blast_query, mocker):
     mocker.patch('ggrecomb.parent_alignment.urlopen', fake_urlopen)
     mocker.patch('ggrecomb.parent_alignment.Entrez.efetch', fake_efetch)
 
-    blast_fastas = list(ggrecomb.parent_alignment.query_blast(query_seq))
+    blast_fastas = list(sr.parent_alignment.query_blast(query_seq))
     assert blast_fastas
     assert all(isinstance(bf, SeqRecord) for bf in blast_fastas)
 
     blast_pdb_fastas = list(
-        ggrecomb.parent_alignment.query_blast(query_seq, 'pdbaa', 100)
+        sr.parent_alignment.query_blast(query_seq, 'pdbaa', 100)
     )
     assert blast_pdb_fastas
     assert all(isinstance(bpf, SeqRecord) for bpf in blast_pdb_fastas)
@@ -110,7 +106,7 @@ def test_choose_candidates(bgl3_records, bgl3_blast_SeqRecords):
     # Brute force way
     from itertools import combinations
     from itertools import product
-    calc_identity = ggrecomb.parent_alignment.calc_identity
+    calc_identity = sr.parent_alignment.calc_identity
     combos = combinations(bgl3_blast_SeqRecords, num_additional)
     diff_cands = []
     for candidates in combos:
@@ -125,7 +121,7 @@ def test_choose_candidates(bgl3_records, bgl3_blast_SeqRecords):
     brute_cands = [names for diff, names in diff_cands if diff == opt_diff]
 
     # Using choose_candidates.
-    choose_cands = ggrecomb.parent_alignment.choose_candidates(
+    choose_cands = sr.parent_alignment.choose_candidates(
         bgl3_blast_SeqRecords,
         preexisting,
         num_additional,
@@ -140,26 +136,26 @@ class TestParentSequences:
     def test_init_invalid_input(self, bgl3_records):
         # No sequences.
         with pytest.raises(ValueError):
-            ParentSequences([])
+            sr.ParentSequences([])
 
         # Conflicting auto_alignment, prealignment.
         with pytest.raises(ValueError):
-            ParentSequences(bgl3_records, auto_align=True, prealigned=True)
+            sr.ParentSequences(bgl3_records, auto_align=True, prealigned=True)
 
     def test_align(self, bgl3_records, mocker, bgl3_parents_aln_str,
                    bgl3_records_aln,
                    wrap_urlopen):
         mocker.patch('ggrecomb.parent_alignment.urlopen',
                      wrap_urlopen(parents_aln_str=bgl3_parents_aln_str))
-        parents = ParentSequences(bgl3_records)
+        parents = sr.ParentSequences(bgl3_records)
         parents.align()
 
         # Test against alignment we expect to see.
         exp_alignment = zip(*[str(rec.seq) for rec in bgl3_records_aln])
         assert all(p == a for p, a in zip(parents.alignment, exp_alignment))
 
-        # Test resulting ParentSequences against prealigned.
-        parents_aln = ParentSequences(bgl3_records_aln, prealigned=True)
+        # Test resulting sr.ParentSequences against prealigned.
+        parents_aln = sr.ParentSequences(bgl3_records_aln, prealigned=True)
         assert parents.alignment == parents_aln.alignment
         # But the records are different.
         assert parents.p0_aligned != parents_aln.alignment
@@ -194,8 +190,8 @@ class TestParentSequences:
             mocker.patch('ggrecomb.parent_alignment.urlopen',
                          wrap_urlopen(parents_aln_str=bgl3_parents_aln_str))
 
-        parents = ParentSequences(input_records, input_pdb, auto_align,
-                                  prealigned)
+        parents = sr.ParentSequences(input_records, input_pdb, auto_align,
+                                     prealigned)
 
         assert parents.records
         for rec, prec in zip(input_records, parents.records):
@@ -243,7 +239,7 @@ class TestParentSequences:
                       mocker, bgl3_parents_aln_str, wrap_urlopen):
         """Test attribute changes starting with pdb."""
         # Unaligned, no PDB.
-        parents = ParentSequences(bgl3_records)
+        parents = sr.ParentSequences(bgl3_records)
         assert parents.records
         with pytest.raises(AttributeError):
             parents.alignment
@@ -286,7 +282,7 @@ class TestParentSequences:
     def test_attr_alignment(self, bgl3_records_aln, bgl3_PDBStructure):
         """Test attribute changes starting with alignment."""
         # Aligned, no PDB.
-        parents = ParentSequences(bgl3_records_aln, prealigned=True)
+        parents = sr.ParentSequences(bgl3_records_aln, prealigned=True)
         parents_unchanged = copy.deepcopy(parents)
 
         assert parents.alignment
@@ -304,7 +300,7 @@ class TestParentSequences:
         assert equal(parents, parents_unchanged)
 
     def test_add_from_candidates(self, bgl3_records, bgl3_blast_SeqRecords):
-        parents = ParentSequences(bgl3_records)
+        parents = sr.ParentSequences(bgl3_records)
 
         with pytest.raises(ValueError):
             parents.add_from_candidates([], 7, 0.7)
@@ -324,11 +320,11 @@ class TestParentSequences:
         mocker.patch('ggrecomb.parent_alignment.query_blast',
                      return_value=bgl3_blast_SeqRecords)
 
-        parents = ParentSequences(copy.deepcopy(bgl3_records))
+        parents = sr.ParentSequences(copy.deepcopy(bgl3_records))
         parents.obtain_seqs(8, 0.7)
 
         # default identity
-        parents = ParentSequences(bgl3_records)
+        parents = sr.ParentSequences(bgl3_records)
         parents.obtain_seqs(8)
 
     def test_get_PDB(self, bgl3_records, mocker, fixture_dir,
@@ -366,11 +362,11 @@ class TestParentSequences:
             )
         )
 
-        parents = ParentSequences(bgl3_records)
+        parents = sr.ParentSequences(bgl3_records)
         with pytest.raises(AttributeError):
             parents.pdb_structure
         parents.get_PDB()
-        assert isinstance(parents.pdb_structure, PDBStructure)
+        assert isinstance(parents.pdb_structure, sr.PDBStructure)
 
     def test_json(self, bgl3_records, bgl3_PDBStructure, mocker,
                   bgl3_parents_aln_str, wrap_urlopen):
@@ -384,26 +380,26 @@ class TestParentSequences:
         )
 
         # No pdb_structure or alignment.
-        in_parents = ParentSequences(bgl3_records)
+        in_parents = sr.ParentSequences(bgl3_records)
         json_str = in_parents.to_json()
-        out_parents = ParentSequences.from_json(json_str)
+        out_parents = sr.ParentSequences.from_json(json_str)
         assert equal(in_parents, out_parents)
 
         # Alignment but no pdb_structure.
-        in_parents = ParentSequences(bgl3_records, auto_align=True)
+        in_parents = sr.ParentSequences(bgl3_records, auto_align=True)
         json_str = in_parents.to_json()
-        out_parents = ParentSequences.from_json(json_str)
+        out_parents = sr.ParentSequences.from_json(json_str)
         assert equal(in_parents, out_parents)
 
         # pdb_structure but no alignment.
-        in_parents = ParentSequences(bgl3_records, bgl3_PDBStructure)
+        in_parents = sr.ParentSequences(bgl3_records, bgl3_PDBStructure)
         json_str = in_parents.to_json()
-        out_parents = ParentSequences.from_json(json_str)
+        out_parents = sr.ParentSequences.from_json(json_str)
         assert equal(in_parents, out_parents)
 
         # Alignment but no pdb_structure.
-        in_parents = ParentSequences(bgl3_records, bgl3_PDBStructure,
-                                     auto_align=True)
+        in_parents = sr.ParentSequences(bgl3_records, bgl3_PDBStructure,
+                                        auto_align=True)
         json_str = in_parents.to_json()
-        out_parents = ParentSequences.from_json(json_str)
+        out_parents = sr.ParentSequences.from_json(json_str)
         assert equal(in_parents, out_parents)

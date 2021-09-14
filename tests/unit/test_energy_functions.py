@@ -1,7 +1,8 @@
 import pytest
 
-from ggrecomb import ParentSequences
-from ggrecomb import PDBStructure
+# from ggrecomb import ParentSequences
+# from ggrecomb import PDBStructure
+import ggrecomb as sr
 from ggrecomb.energy_functions import SCHEMA
 
 
@@ -12,10 +13,10 @@ def bgl3_trunc_dir(fixture_dir):
 
 @pytest.fixture
 def bgl3_trunc_parents(bgl3_trunc_dir):
-    pdb = PDBStructure.from_pdb_file(bgl3_trunc_dir / '1GNX_trunc.pdb')
+    pdb = sr.PDBStructure.from_pdb_file(bgl3_trunc_dir / '1GNX_trunc.pdb')
     parents_fn = bgl3_trunc_dir / 'bgl3_trunc_aln.fasta'
-    parents = ParentSequences.from_fasta(parents_fn, pdb_structure=pdb,
-                                         prealigned=True)
+    parents = sr.ParentSequences.from_fasta(parents_fn, pdb_structure=pdb,
+                                            prealigned=True)
     return parents
 
 
@@ -27,13 +28,13 @@ def test_init(bgl3_trunc_parents, bgl3_records, bgl3_records_aln):
     assert hasattr(schema, 'E_matrix')
 
     # No alignment.
-    parents = ParentSequences(bgl3_records)
+    parents = sr.ParentSequences(bgl3_records)
     assert not hasattr(parents, 'alignment')
     with pytest.raises(ValueError):
         SCHEMA(parents)
 
     # Alignment but no pdb_structure.
-    aln_parents = ParentSequences(bgl3_records_aln, prealigned=True)
+    aln_parents = sr.ParentSequences(bgl3_records_aln, prealigned=True)
     assert hasattr(aln_parents, 'alignment')
     assert not hasattr(aln_parents, 'pdb_structure')
     with pytest.raises(ValueError):

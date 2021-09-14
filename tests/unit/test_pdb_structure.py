@@ -1,4 +1,4 @@
-"""Unit tests for pdb_structure module, including ggrecomb.PDBStructure."""
+"""Unit tests for pdb_structure module, including ggrecomb.sr.PDBStructure."""
 
 import copy
 from collections import defaultdict
@@ -6,7 +6,8 @@ from collections import defaultdict
 from Bio import SeqIO
 import pytest
 
-from ggrecomb import PDBStructure
+# from ggrecomb import sr.PDBStructure
+import ggrecomb as sr
 from ggrecomb.pdb_structure import Atom, AminoAcid
 
 
@@ -146,34 +147,34 @@ class TestPDBStructure:
     def invalid_init(self, bgl3_fasta_filename, amino_acid_list):
         p1 = str(list(SeqIO.parse(bgl3_fasta_filename, 'fasta'))[0].seq)
         with pytest.raises(ValueError):
-            PDBStructure(amino_acid_list, None, p1)
+            sr.PDBStructure(amino_acid_list, None, p1)
 
         p1_short = p1[:400]
-        renum_pdb = PDBStructure(amino_acid_list)
+        renum_pdb = sr.PDBStructure(amino_acid_list)
         renum_pdb.renumber(p1_short)
         amino_acids = renum_pdb.amino_acids
         unrenum = renum_pdb.unrenumbered_amino_acids
         with pytest.raises(ValueError):
-            PDBStructure(amino_acids, unrenum, None)
+            sr.PDBStructure(amino_acids, unrenum, None)
 
         # Empty unrenumbered_amino_acids.
         with pytest.raises(ValueError):
-            PDBStructure(amino_acids, [], p1_short)
+            sr.PDBStructure(amino_acids, [], p1_short)
 
         # p1 too short.
         with pytest.raises(ValueError):
-            PDBStructure(amino_acids, unrenum, p1_short[:200])
+            sr.PDBStructure(amino_acids, unrenum, p1_short[:200])
 
         # p1 too long.
         with pytest.raises(ValueError):
-            PDBStructure(amino_acids, unrenum, p1)
+            sr.PDBStructure(amino_acids, unrenum, p1)
 
     def test_renumbering(self, bgl3_fasta_filename, amino_acid_list):
         # TODO: Probably want to do this one with multiple PDBs.
         assert amino_acid_list
 
-        # Test PDBStructure init.
-        pdb = PDBStructure(amino_acid_list)
+        # Test sr.PDBStructure init.
+        pdb = sr.PDBStructure(amino_acid_list)
         assert pdb.amino_acids
         with pytest.raises(AttributeError):
             pdb.unrenumbered_amino_acids
@@ -212,7 +213,7 @@ class TestPDBStructure:
 
     def test_double_renum(self, bgl3_fasta_filename, amino_acid_list):
         """Same as test_renumbering but double renum with two reduced p1."""
-        pdb = PDBStructure(amino_acid_list)
+        pdb = sr.PDBStructure(amino_acid_list)
         p1 = str(list(SeqIO.parse(bgl3_fasta_filename, 'fasta'))[0].seq)
 
         renum_pdb = copy.deepcopy(pdb)
@@ -249,22 +250,22 @@ class TestPDBStructure:
             assert contact in pdb.contacts
 
     def test_from_pdb_file(self, bgl3_pdb_filename, amino_acid_list):
-        pdb_s = PDBStructure.from_pdb_file(str(bgl3_pdb_filename))
+        pdb_s = sr.PDBStructure.from_pdb_file(str(bgl3_pdb_filename))
         with open(bgl3_pdb_filename) as f:
-            pdb_f = PDBStructure.from_pdb_file(f)
-        pdb_p = PDBStructure.from_pdb_file(bgl3_pdb_filename)
+            pdb_f = sr.PDBStructure.from_pdb_file(f)
+        pdb_p = sr.PDBStructure.from_pdb_file(bgl3_pdb_filename)
 
-        pdb = PDBStructure(amino_acid_list)
+        pdb = sr.PDBStructure(amino_acid_list)
 
         assert pdb.seq == pdb_s.seq
         assert pdb.seq == pdb_f.seq
         assert pdb.seq == pdb_p.seq
 
     def test_json(self, amino_acid_list, bgl3_fasta_filename):
-        in_pdb = PDBStructure(amino_acid_list)
+        in_pdb = sr.PDBStructure(amino_acid_list)
         json_str = in_pdb.to_json()
         assert json_str
-        out_pdb = PDBStructure.from_json(json_str)
+        out_pdb = sr.PDBStructure.from_json(json_str)
         assert in_pdb.seq == out_pdb.seq
         with pytest.raises(AttributeError):
             out_pdb.unrenumbered_amino_acids
@@ -273,10 +274,10 @@ class TestPDBStructure:
 
         p1 = str(list(SeqIO.parse(bgl3_fasta_filename, 'fasta'))[0].seq)
         p1_short = p1[:400]
-        renum_pdb = PDBStructure(amino_acid_list)
+        renum_pdb = sr.PDBStructure(amino_acid_list)
         renum_pdb.renumber(p1_short)
         json_str2 = renum_pdb.to_json()
         assert json_str2
-        out_pdb2 = PDBStructure.from_json(json_str2)
+        out_pdb2 = sr.PDBStructure.from_json(json_str2)
         assert renum_pdb.seq == out_pdb2.seq
         assert renum_pdb.renumbering_seq == out_pdb2.renumbering_seq

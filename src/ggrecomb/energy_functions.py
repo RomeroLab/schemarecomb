@@ -1,6 +1,6 @@
 # energy_functions.py
 
-"""Functions used in library energy calculations.
+"""Chimeric library energy calculations.
 
 Library energy should be correlated with the functional fraction of proteins in
 the library. Thus, a library with high energy is likely to have a smaller
@@ -12,6 +12,7 @@ versions.
 
 """
 
+from importlib import import_module
 from itertools import product
 
 import numpy as np
@@ -27,6 +28,12 @@ class EnergyFunction:
 
     def import_mod_cls(self) -> tuple[str, str]:
         raise NotImplementedError
+
+
+def build_from_str(mod: str, name: str, parents: ggrecomb.ParentSequences):
+    """Build EnergyFunction subclass instance from name and ParentSequences."""
+    e_function_type = getattr(import_module(mod), name)
+    return e_function_type(parents)
 
 
 class SCHEMA(EnergyFunction):

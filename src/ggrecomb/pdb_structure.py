@@ -1,6 +1,6 @@
 # pdb_structure.py
 
-"""Parse and manipulate Protein Data Bank structure files.
+"""Parsing and manipulation of Protein Data Bank structure files.
 
 This module provides the definition of :class:`ggrecomb.PDBStructure` and the
 accessory classes :class:`AminoAcid` and :class:`Atom` that represent the

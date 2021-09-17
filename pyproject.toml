@@ -29,6 +29,7 @@ testpaths = [
     "tests/unit/",
     "src/ggrecomb/pdb_structure.py",
     "src/ggrecomb/parent_alignment.py",
+    "src/ggrecomb/libraries.py",
     # "README.rst" TODO: add this when v0.1 methods are filled out
 ]
 

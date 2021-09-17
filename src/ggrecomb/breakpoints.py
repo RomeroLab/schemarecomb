@@ -1,4 +1,4 @@
-"""Finding valid breakpoints in a parent alignment."""
+"""Recombination site discovery in :class:`~ggrecomb.ParentSequences`."""
 
 import itertools
 from typing import NamedTuple
@@ -7,11 +7,30 @@ from typing import Optional
 from ggrecomb import ParentSequences
 
 
+class Overhang(NamedTuple):
+    """Valid Golden Gate Assembly overhangs (sticky ends).
+
+    Parameters:
+        ind: Index of the start site relative to the codon at one less than the
+            breakpoint's position - 1. For example, the (1, 'TGTG') overhang
+            would be a sticky end that is one base pair right of the codon at
+            position-1. So if the alignment only has 'M' and 'W' at position-1
+            and position, respectively, "ATG" and "TGG" are the only codons
+            that may appear at these indices. Then, with the overhang as
+            upper-case, the assembled DNA sequence will be "...aTGTGg...". An
+            ind of -1 implies that the overhang is a dummy.
+        seq: Sequence of the sticky end.
+
+    """
+    ind: int
+    seq: str
+
+
 class BreakPoint(NamedTuple):
     """Valid site for Golden Gate Assembly in a parent alignment.
 
     A BreakPoint is where an alignment may be cut and recombined to form
-    chimeric sequences. Also known as "crossover".
+    chimeric sequences. Also known as "crossover" or "recombination site".
 
     Parameters:
        position: Index within a ParentSequence.alignment where the BreakPoint
@@ -30,7 +49,7 @@ class BreakPoint(NamedTuple):
 
     """
     position: int
-    overhangs: list[tuple[int, str]]
+    overhangs: list[Overhang]
 
 
 def _get_valid_patterns(
@@ -39,7 +58,7 @@ def _get_valid_patterns(
 ) -> tuple[set[str], set[str], set[str]]:
     """DNA patterns in the codon alignment for Golden Gate site construction.
 
-    Helper function for _calculate_breakpoints. Each input set corresponds to
+    Helper function for calculate_breakpoints. Each input set corresponds to
     the valid codons that encode a given amino acid at a given position in the
     parent alignment.  For example, if a certain position has isoleucine and
     threonine, and the valid codons for these amino acids are ('ATT', 'ATC')
@@ -99,8 +118,8 @@ def _get_valid_patterns(
 def calculate_breakpoints(
     parents: ParentSequences,
     codon_options: dict[str, set[str]],
-    start_overhangs: Optional[list[tuple[int, str]]] = None,
-    end_overhangs: Optional[list[tuple[int, str]]] = None,
+    start_overhangs: Optional[list[Overhang]] = None,
+    end_overhangs: Optional[list[Overhang]] = None,
 ) -> list[BreakPoint]:
     """Calculate the breakpoints for the parent alignment.
 
@@ -194,7 +213,7 @@ def calculate_breakpoints(
         pattern_iter = zip(reversed(pos1_bins), pos2_bins)
         for pos, (pat_set1, pat_set2) in enumerate(pattern_iter):
             for pat1, pat2 in itertools.product(pat_set1, pat_set2):
-                oh = (pos, pat1 + pat2)
+                oh = Overhang(pos, pat1 + pat2)
                 overhangs.append(oh)
 
         if not overhangs:
@@ -209,3 +228,51 @@ def calculate_breakpoints(
         breakpoints.append(end_bp)
 
     return breakpoints
+
+
+def block_indices(
+    breakpoints: list[BreakPoint],
+    aln_len: int
+) -> list[tuple[int, int]]:
+    """Get the blocks' start and end indices given a list of breakpoints.
+
+    The start index is inclusive and the end index is exclusive, i.e. slice
+    indexing. For example, if a block starts at 40 and ends at 83, a parent
+    sequence can be sliced by these indices to result in a chimeric block as
+    such: p2_block1 = parent2[40:83]. This also implies that the end index of
+    this block is the start index of the next block, e.g. p2_block2 =
+    parent2[83:132].
+
+    This function also handles the presence or absence of breakpoints at the
+    zero position and alignment length position. These positions usually have
+    fixed breakpoints (across all libraries) corresponding to the target vector
+    that will hold the assembled chimera, but may be omitted depending on
+    application. Regardless, this function will temporarily add breakpoint
+    indices at the first and last positions (0 and aln_len) if necessary to
+    correctly compute the chimeric blocks' start and end indicies.
+
+    Parameters:
+        breakpoints: BreakPoints where the parent alignment is cut, usually
+            comes from a library.
+        aln_len: The length of the alignment. This is the end index of the
+            last block, which may already be in breakpoints. Generally passed
+            in as len(parents.alignment), where parents is a ParentSequences.
+
+    Returns:
+        The (start, end) indices of each chimeric block.
+
+    Raises:
+        ValueError: If breakpoints is empty.
+
+    """
+    if not breakpoints:
+        raise ValueError('breakpoints must not be empty.')
+
+    # handle if breakpoints is missing 0 index or aln_len index.
+    bp_inds = tuple(sorted(bp.position for bp in breakpoints))
+    if bp_inds[0] != 0:
+        bp_inds = (0,) + bp_inds
+    if bp_inds[-1] != aln_len:
+        bp_inds += (aln_len,)
+
+    return [(i, f) for i, f in zip(bp_inds, bp_inds[1:])]

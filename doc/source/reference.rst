@@ -15,6 +15,8 @@ Primary Classes
     :toctree: generated/
     :template: class.rst
 
+    Library
+
     ParentSequences
 
     PDBStructure
@@ -27,9 +29,11 @@ Additional Modules
     :toctree: generated/
     :template: module.rst
 
+    breakpoints
+
     energy_functions
 
-    breakpoints
+    libraries
 
     parent_alignment
     

@@ -9,8 +9,8 @@ import ggrecomb as sr
 
 @pytest.fixture
 def breakpoints(bgl3_parents_aln, AA_C31):
-    start = [(2, 'TATG')]
-    end = [(0, 'TGAG')]
+    start = [sr.breakpoints.Overhang(2, 'TATG')]
+    end = [sr.breakpoints.Overhang(0, 'TGAG')]
     return sr.breakpoints.calculate_breakpoints(bgl3_parents_aln, AA_C31,
                                                 start, end)
 
@@ -30,7 +30,7 @@ def test_max_gg_prob(breakpoints):
         assert abs(gg_prob - resenz.gg_prob(opt_ohs)) < Decimal(10**-6)
 
         # The best found is among the best found by brute-force.
-        oh_sets = [[oh[1] for oh in bp.overhangs] for bp in opt_bps]
+        oh_sets = [[oh for oh in bp.overhangs] for bp in opt_bps]
         curr_best = Decimal(0.0)
         for cand_ohs in product(*oh_sets):
             cand_prob = resenz.gg_prob(cand_ohs)

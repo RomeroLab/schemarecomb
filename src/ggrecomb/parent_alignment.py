@@ -1,6 +1,6 @@
 # parent_alignment.py
 
-"""Alignments of parental sequences for combinatorial protein libraries.
+"""Alignment of parental sequences for protein recombination.
 
 This module provides the definition of :class:`ggrecomb.ParentSequences`, which
 represents an alignment of parental protein sequences used in ggrecomb library
@@ -920,7 +920,7 @@ class _ParentSequences:
         """Construct instance from JSON.
 
         Parameters:
-            in_json: JSON-formatted string representing a ParentsSequences.
+            in_json: JSON-formatted string representing a ParentSequences.
 
         Return:
             ParentSequences instance created from in_json.

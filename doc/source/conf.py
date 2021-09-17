@@ -70,7 +70,8 @@ html_theme = 'alabaster'
 def setup(app):
     import ggrecomb
     # need to assign the names here, otherwise autodoc won't document these
-    # classes, # and will instead just say 'alias of ...'
+    # classes, and will instead just say 'alias of ...'
+    ggrecomb.Library.__name__ = 'Library'
     ggrecomb.PDBStructure.__name__ = 'PDBStructure'
     ggrecomb.ParentSequences.__name__ = 'ParentSequences'
 

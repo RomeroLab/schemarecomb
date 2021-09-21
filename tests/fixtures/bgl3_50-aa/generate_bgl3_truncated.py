@@ -10,8 +10,8 @@ from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
-from ggrecomb import ParentSequences
-from ggrecomb import PDBStructure
+from schemarecomb import ParentSequences
+from schemarecomb import PDBStructure
 
 trunc_dir = os.path.dirname(os.path.realpath(__file__))
 bgl3_full_dir = os.path.join(trunc_dir, '..', 'bgl3_full')

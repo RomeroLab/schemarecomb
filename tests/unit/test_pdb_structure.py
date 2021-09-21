@@ -1,4 +1,4 @@
-"""Unit tests for pdb_structure module, including ggrecomb.sr.PDBStructure."""
+"""Unit tests for pdb_structure module, including sr.PDBStructure."""
 
 import copy
 from collections import defaultdict
@@ -6,9 +6,8 @@ from collections import defaultdict
 from Bio import SeqIO
 import pytest
 
-# from ggrecomb import sr.PDBStructure
-import ggrecomb as sr
-from ggrecomb.pdb_structure import Atom, AminoAcid
+import schemarecomb as sr
+from schemarecomb.pdb_structure import Atom, AminoAcid
 
 
 @pytest.fixture

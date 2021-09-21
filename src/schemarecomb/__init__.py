@@ -1,7 +1,7 @@
-from ggrecomb.pdb_structure import _PDBStructure as PDBStructure
-from ggrecomb.parent_alignment import _ParentSequences as ParentSequences
-from ggrecomb.libraries import _Library as Library
-from ggrecomb.optimizers import _generate_libraries as generate_libraries
+from schemarecomb.pdb_structure import _PDBStructure as PDBStructure
+from schemarecomb.parent_alignment import _ParentSequences as ParentSequences
+from schemarecomb.libraries import _Library as Library
+from schemarecomb.optimizers import _generate_libraries as generate_libraries
 
 from . import energy_functions
 from . import restriction_enzymes

@@ -1,6 +1,6 @@
-"""Functions and classes that handle :class:`~ggrecomb.Library` instances.
+"""Functions and classes that handle :class:`~schemarecomb.Library` instances.
 
-This module provides the definition of :class:`ggrecomb.Library`, which
+This module provides the definition of :class:`schemarecomb.Library`, which
 represents a library of chimeric proteins, and functions for analyzing and
 manipulating libraries.
 
@@ -22,13 +22,13 @@ from typing import Union
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
-import ggrecomb
-from ggrecomb.breakpoints import BreakPoint
-from ggrecomb.breakpoints import block_indices
-from ggrecomb.breakpoints import Overhang
-from ggrecomb import energy_functions
-from ggrecomb.energy_functions import EnergyFunction
-from ggrecomb.restriction_enzymes import RestrictionEnzyme
+import schemarecomb
+from schemarecomb.breakpoints import BreakPoint
+from schemarecomb.breakpoints import block_indices
+from schemarecomb.breakpoints import Overhang
+from schemarecomb import energy_functions
+from schemarecomb.energy_functions import EnergyFunction
+from schemarecomb.restriction_enzymes import RestrictionEnzyme
 
 
 # List of 31 common codons {+stop and gap) in E. coli.
@@ -58,7 +58,7 @@ class MutationRateCache(MutableMapping):
     otherwise identical libraries with breakpoints at positions 2 or 3 are
     known to have the same mutation rate. Then::
 
-        >>> from ggrecomb.libraries import MutationRateCache
+        >>> from schemarecomb.libraries import MutationRateCache
         >>> bp_to_group = {1: 1, 2: 2, 3: 2, 4: 3}  # 2 and 3 in the same group
         >>> mr_cache = MutationRateCache(bp_to_group)
         >>> mr_cache[(1, 2, 4)] = 23.4  # avg mutation rate of lib (1, 2, 4)
@@ -76,7 +76,7 @@ class MutationRateCache(MutableMapping):
         self._group_to_m: dict[tuple[int, ...], float] = {}
 
     @classmethod
-    def from_parents(cls, parents: ggrecomb.ParentSequences,
+    def from_parents(cls, parents: schemarecomb.ParentSequences,
                      valid_bps: list[BreakPoint]) -> 'MutationRateCache':
         """Construct from ParentSequences and a list of valid breakpoints.
 
@@ -167,7 +167,7 @@ def _sequence_mutations(seq1, seq2):
 
 def average_mutations(
     breakpoints: list[BreakPoint],
-    parents: ggrecomb.ParentSequences,
+    parents: schemarecomb.ParentSequences,
     mr_cache: Optional[MutationRateCache] = None
 ) -> Decimal:
     """Calculates the average number of mutations in a chimeric library.
@@ -238,7 +238,7 @@ def average_mutations(
 class LibraryConfig:
     """Holds parameters shared across a collection of Library instances.
 
-    Passed into :func:`ggrecomb.Library.calc_from_config` constructor.
+    Passed into :func:`schemarecomb.Library.calc_from_config` constructor.
 
     Parameters:
         energy_function: The EnergyFunction used the calculate to energy
@@ -282,9 +282,9 @@ class _Library:
 
     This class is not usually instantiated by users, but instead by another
     package function. If generating many libraries, the simplest construction
-    method is via the :meth:`ggrecomb.calc_from_config` constructor, which uses
-    a :class:`~ggrecomb.libraries.LibraryConfig` to consolidate or compute
-    all parameters except breakpoints and energy.
+    method is via the :meth:`schemarecomb.calc_from_config` constructor, which
+    uses a :class:`~schemarecomb.libraries.LibraryConfig` to consolidate or
+    compute all parameters except breakpoints and energy.
 
     A library consists of a parent alignment and a series of breakpoints, which
     are the indices of the alignment where the parent sequences are recombined
@@ -309,10 +309,10 @@ class _Library:
     overhangs chosen) based on data from Gregory Lohman and collaborators at
     NEB (Potapov et al. 2018). See Pryor, Potapov, et al. 2020 for details on
     the biology and mathematics behind this technique. (Note that the
-    calculation was developed independently by the authors of ggrecomb in
+    calculation was developed independently by the authors of schemarecomb in
     2019 after viewing a talk by Dr. Lohman.)
 
-    See :mod:`ggrecomb.libraries` for classes and functions that handle
+    See :mod:`schemarecomb.libraries` for classes and functions that handle
     Library instances.
 
     The attributes for this class are the same as the parameters, with the
@@ -358,7 +358,7 @@ class _Library:
     Attributes:
         All parameters for this class are also attributes.
         block_indices (list[tuple[int, int]]): The start and end indicies of
-            each block. See :func:`~ggrecomb.breakpoints.block_indices`
+            each block. See :func:`~schemarecomb.breakpoints.block_indices`
             for more information.
         max_block_len (int): Size of the largest block in the library.
         min_block_len (int): Size of the smallest block in the library.
@@ -398,8 +398,8 @@ class _Library:
         return max(end - start for start, end in self.block_indices)
 
     @property
-    def _ggrecomb_version(self):
-        return metadata.version('ggrecomb')
+    def _schemarecomb_version(self):
+        return metadata.version('schemarecomb')
 
     @property
     def dna_blocks(self):
@@ -549,7 +549,7 @@ class _Library:
         """Calculate average mutation rate and gg_prob during construction.
 
         Useful for when constructing many libraries from the same
-        :class:`~ggrecomb.ParentSequences`. Energy must be precalculated.
+        :class:`~schemarecomb.ParentSequences`. Energy must be precalculated.
 
         Parameters:
             breakpoints: The breakpoints that define the new library.
@@ -610,7 +610,7 @@ class _Library:
             self.gg_overhangs,
             self.gg_enzyme.to_json(),
             amino_to_cdn,
-            f'ggrecomb version: {self._ggrecomb_version}'
+            f'schemarecomb version: {self._schemarecomb_version}'
         ]
         return json.dumps(out_list)
 
@@ -637,7 +637,7 @@ class _Library:
 
         energy = Decimal(energy)
 
-        parents = ggrecomb.ParentSequences.from_json(pa_json)
+        parents = schemarecomb.ParentSequences.from_json(pa_json)
 
         ef_mod, ef_name = e_function_tup
         e_function = energy_functions.build_from_str(ef_mod, ef_name, parents)

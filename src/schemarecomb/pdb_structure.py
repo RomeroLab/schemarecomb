@@ -2,8 +2,8 @@
 
 """Parsing and manipulation of Protein Data Bank structure files.
 
-This module provides the definition of :class:`ggrecomb.PDBStructure` and the
-accessory classes :class:`AminoAcid` and :class:`Atom` that represent the
+This module provides the definition of :class:`schemarecomb.PDBStructure` and
+the accessory classes :class:`AminoAcid` and :class:`Atom` that represent the
 eponymous entities within a PDB structure.
 
 PDBStructures contain a list of AminoAcid objects, which act as containers for
@@ -78,8 +78,8 @@ class Atom:
     This class is basically a one-to-one conversion of 'ATOM' lines in `PDB
     files <https://www.cgl.ucsf.edu/chimera/docs/UsersGuide/tutorials/pdbintro
     .html>`_. The primary constructor is Atom.from_line() to allow for easy
-    parsing of PDB files. For ggrecomb, the important attributes are res_name,
-    res_index, x, y, and z.
+    parsing of PDB files. For schemarecomb, the important attributes are
+    res_name, res_index, x, y, and z.
 
     Initalization parameters and attributes are equivalent for this class.
 
@@ -199,8 +199,8 @@ class AminoAcid:
     """Amino acid within a PDB structure.
 
     This class is a collection of :class:`Atom` objects that make up a residue
-    in a :class:`ggrecomb.PDBStructure`, plus additional functions for ggrecomb
-    calculation.
+    in a :class:`schemarecomb.PDBStructure`, plus additional functions for
+    schemarecomb calculation.
 
     Parameters:
         atoms: Atoms within the AminoAcid. All Atom objects in list must have
@@ -288,7 +288,7 @@ class AminoAcid:
             This method does not save the orig_index attribute.
 
         Example:
-         >>> from ggrecomb.pdb_structure import AminoAcid
+         >>> from schemarecomb.pdb_structure import AminoAcid
          >>> pdb_fn = 'tests/fixtures/bgl3_full/1GNX.pdb'
          >>>
          >>> # Get all "ATOM" lines with index 15 into in_lines.
@@ -346,8 +346,8 @@ class AminoAcid:
             JSON string representing the AminoAcid.
 
         Example:
-         >>> from ggrecomb import PDBStructure
-         >>> from ggrecomb.pdb_structure import AminoAcid
+         >>> from schemarecomb import PDBStructure
+         >>> from schemarecomb.pdb_structure import AminoAcid
          >>>
          >>> # Get the first amino acid in the PDB file.
          >>> pdb_fn = 'tests/fixtures/bgl3_full/1GNX.pdb'
@@ -381,14 +381,14 @@ class _PDBStructure:
     This class is a Python representation of a PDB file, e.g. `1GNX.pdb
     <https://files.rcsb.org/download/1GNX.pdb>`_, which hold protein structure
     data and are downloaded from https://www.rcsb.org. This download may be
-    done automatically with the :meth:`ggrecomb.ParentSequences.get_PDB` method
-    or manually. In the latter case, PDBStructure object must also be created
-    manually, e.g. using the :meth:`from_pdb_file` class method.
+    done automatically with the :meth:`schemarecomb.ParentSequences.get_PDB`
+    method or manually. In the latter case, PDBStructure object must also be
+    created manually, e.g. using the :meth:`from_pdb_file` class method.
 
-    See :mod:`~ggrecomb.pdb_structure` for lower-level information about this
-    class, including the PDB file format and the helper classes
-    :class:`~ggrecomb.pdb_structure.AminoAcid` and
-    :class:`~ggrecomb.pdb_structure.Atom`.
+    See :mod:`~schemarecomb.pdb_structure` for lower-level information about
+    this class, including the PDB file format and the helper classes
+    :class:`~schemarecomb.pdb_structure.AminoAcid` and
+    :class:`~schemarecomb.pdb_structure.Atom`.
 
     Parameters:
         amino_acids: Amino acids in the PDB structure.
@@ -576,7 +576,7 @@ class _PDBStructure:
     ) -> '_PDBStructure':
         """Construct from PDB file without renumbering.
 
-        Reference the :mod:`~ggrecomb.pdb_structure` module to see the
+        Reference the :mod:`~schemarecomb.pdb_structure` module to see the
         structure of a PDB file.
 
         Parameters:
@@ -652,8 +652,8 @@ class _PDBStructure:
 
         Example::
 
-         >>> from ggrecomb import PDBStructure
-         >>> from ggrecomb.pdb_structure import AminoAcid
+         >>> from schemarecomb import PDBStructure
+         >>> from schemarecomb.pdb_structure import AminoAcid
          >>>
          >>> # Get a PDBStructure from a PDB file.
          >>> pdb_fn = 'tests/fixtures/bgl3_full/1GNX.pdb'

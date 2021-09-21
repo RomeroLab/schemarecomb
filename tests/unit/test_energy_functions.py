@@ -2,10 +2,8 @@ from decimal import Decimal
 
 import pytest
 
-# from ggrecomb import ParentSequences
-# from ggrecomb import PDBStructure
-import ggrecomb as sr
-from ggrecomb.energy_functions import SCHEMA
+import schemarecomb as sr
+from schemarecomb.energy_functions import SCHEMA
 
 
 @pytest.fixture

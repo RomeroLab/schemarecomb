@@ -1,7 +1,7 @@
 import pytest
 
-import ggrecomb as sr
-from ggrecomb import breakpoints
+import schemarecomb as sr
+from schemarecomb import breakpoints
 
 
 def test_get_valid_patterns():

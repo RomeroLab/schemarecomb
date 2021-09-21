@@ -6,7 +6,7 @@ import random
 
 import pytest
 
-import ggrecomb as sr
+import schemarecomb as sr
 
 
 @pytest.fixture

@@ -2,11 +2,11 @@
 
 """Alignment of parental sequences for protein recombination.
 
-This module provides the definition of :class:`ggrecomb.ParentSequences`, which
-represents an alignment of parental protein sequences used in ggrecomb library
-creation. The module can be used directly to use accessory functions for
-calculating identity between sequences, querying the BLAST web interface, or
-selecting additional parent sequences from a list of candidates.
+This module provides the definition of :class:`schemarecomb.ParentSequences`,
+which represents an alignment of parental protein sequences used in
+schemarecomb library creation. The module can be used directly to use accessory
+functions for calculating identity between sequences, querying the BLAST web
+interface, or selecting additional parent sequences from a list of candidates.
 
 """
 
@@ -30,7 +30,7 @@ from Bio.Blast.NCBIWWW import _parse_qblast_ref_page
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
-import ggrecomb
+import schemarecomb
 
 
 def calc_identity(sr1: SeqRecord, sr2: SeqRecord) \
@@ -517,7 +517,7 @@ class _ParentSequences:
     This class sets up the data needed to run recombinant design algorithms,
     e.g. intaking and aligning parental sequences, aligning the parents, and
     finding a PDB structure or additional parents. Instances of this class are
-    passed into functions further down the ggrecomb pipeline.
+    passed into functions further down the schemarecomb pipeline.
 
     Note:
         The first sequence (records[0]) has special importance, as it's used to
@@ -527,7 +527,7 @@ class _ParentSequences:
         sequences.
 
     Parameters:
-        records: Parental amino acid sequences for ggrecomb
+        records: Parental amino acid sequences for schemarecomb
             calculations.
         auto_align: If True, the records are aligned upon initialization.
         prealigned: If True, the records are already aligned upon
@@ -540,7 +540,7 @@ class _ParentSequences:
 
     Attributes:
         records (list[SeqRecord]): Parental amino acid sequences for
-            ggrecomb calculations. `BioPython SeqRecords
+            schemarecomb calculations. `BioPython SeqRecords
             <https://biopython.org/wiki/SeqRecord>`_ contain sequence metadata
             such as the name of the sequence. The (unaligned) ith sequence may
             be obtained as a Python string with
@@ -553,9 +553,9 @@ class _ParentSequences:
             pdb_structure attribute if present.
         p0_aligned (str): records[0] aligned, calculated from alignment.
             Present if and only if instance is aligned.
-        pdb_structure (ggrecomb.PDBStructure): Protein Data Bank structure that
-            represents the three-dimensional structure of the aligned parent
-            sequences.
+        pdb_structure (schemarecomb.PDBStructure): Protein Data Bank structure
+            that represents the three-dimensional structure of the aligned
+            parent sequences.
 
     Examples:
         To start, you need a FASTA file with at least one parent sequence. For
@@ -569,7 +569,7 @@ class _ParentSequences:
         parents and choose the PDB structure closest to the parents.
 
         >>> getfixture('bgl3_mock_namespace')
-        >>> from ggrecomb import ParentSequences
+        >>> from schemarecomb import ParentSequences
         >>> fn = 'tests/fixtures/bgl3_1-parent/bgl3_p0.fasta'
         >>> parents = ParentSequences.from_fasta(fn)
         >>> parents.obtain_seqs(6, 0.7)  # BLAST takes about 10 minutes.
@@ -588,8 +588,8 @@ class _ParentSequences:
         You can skip the slow web queries if you already have a FASTA with the
         aligned parents and the PDB structure you want to use:
 
-        >>> from ggrecomb import ParentSequences
-        >>> from ggrecomb import PDBStructure
+        >>> from schemarecomb import ParentSequences
+        >>> from schemarecomb import PDBStructure
         >>> pdb_fn = 'tests/fixtures/bgl3_full/1GNX.pdb'
         >>> parents_fn = 'tests/fixtures/bgl3_full/bgl3_sequences_aln.fasta'
         >>> pdb = PDBStructure.from_pdb_file(pdb_fn)
@@ -607,8 +607,8 @@ class _ParentSequences:
 
         You can also save or load a ParentSequences as a JSON:
 
-        >>> from ggrecomb import ParentSequences
-        >>> from ggrecomb import PDBStructure
+        >>> from schemarecomb import ParentSequences
+        >>> from schemarecomb import PDBStructure
         >>> tempdir = getfixture('tmpdir')  # pytest jargon, ignore this.
         >>> pdb_fn = 'tests/fixtures/bgl3_full/1GNX.pdb'
         >>> parents_fn = 'tests/fixtures/bgl3_full/bgl3_sequences_aln.fasta'
@@ -637,7 +637,7 @@ class _ParentSequences:
     def __init__(
         self,
         records: list[SeqRecord],
-        pdb_structure: Optional['ggrecomb.PDBStructure'] = None,
+        pdb_structure: Optional['schemarecomb.PDBStructure'] = None,
         auto_align: bool = False,
         prealigned: bool = False
     ) -> None:
@@ -650,7 +650,7 @@ class _ParentSequences:
 
         self.records = records
 
-        self.pdb_structure: 'ggrecomb.PDBStructure'
+        self.pdb_structure: 'schemarecomb.PDBStructure'
         if pdb_structure is not None:
             self.pdb_structure = pdb_structure
 
@@ -869,7 +869,10 @@ class _ParentSequences:
         _, acc, chain = best_id.split('|')
         url = 'https://files.rcsb.org/view/' + acc + '.pdb'
         with urlopen(url) as f:
-            pdb_structure = ggrecomb.PDBStructure.from_pdb_file(f, chain=chain)
+            pdb_structure = schemarecomb.PDBStructure.from_pdb_file(
+                f,
+                chain=chain
+            )
 
         self.pdb_structure = pdb_structure
 
@@ -936,7 +939,7 @@ class _ParentSequences:
             seq_records.append(sr)
 
         if pdb is not None:
-            pdb = ggrecomb.PDBStructure.from_json(pdb)
+            pdb = schemarecomb.PDBStructure.from_json(pdb)
 
         new_instance = cls(seq_records, pdb)
 

@@ -3,7 +3,7 @@ import copy
 from Bio.SeqRecord import SeqRecord
 import pytest
 
-import ggrecomb as sr
+import schemarecomb as sr
 
 
 @pytest.fixture
@@ -45,8 +45,8 @@ def test_query_blast(bgl3_records, mock_bgl3_blast_query, mocker):
     query_seq = str(bgl3_records[0].seq)
 
     fake_urlopen, fake_efetch = mock_bgl3_blast_query
-    mocker.patch('ggrecomb.parent_alignment.urlopen', fake_urlopen)
-    mocker.patch('ggrecomb.parent_alignment.Entrez.efetch', fake_efetch)
+    mocker.patch('schemarecomb.parent_alignment.urlopen', fake_urlopen)
+    mocker.patch('schemarecomb.parent_alignment.Entrez.efetch', fake_efetch)
 
     blast_fastas = list(sr.parent_alignment.query_blast(query_seq))
     assert blast_fastas
@@ -68,7 +68,7 @@ def test_query_blast(bgl3_records, mocker, blast_http_responses,
     pdb_responses = blast_http_responses('pdb')
     responses = {'refseq_protein': refseq_responses, 'pdbaa': pdb_responses}
     mocker.patch(
-        'ggrecomb.parent_alignment.urlopen',
+        'schemarecomb.parent_alignment.urlopen',
         wrap_urlopen(
             query_seq=query_seq,
             aln_str=bgl3_aln_str,
@@ -78,19 +78,19 @@ def test_query_blast(bgl3_records, mocker, blast_http_responses,
     )
     # also need to patch Entrez.efetch for BLAST runs
     mocker.patch(
-        'ggrecomb.parent_alignment.Entrez.efetch',
+        'schemarecomb.parent_alignment.Entrez.efetch',
         wrap_efetch(
             responses=responses,
             acc_to_database=acc_to_database
         )
     )
 
-    blast_fastas = list(ggrecomb.parent_alignment.query_blast(query_seq))
+    blast_fastas = list(schemarecomb.parent_alignment.query_blast(query_seq))
     assert blast_fastas
     assert all(isinstance(bf, SeqRecord) for bf in blast_fastas)
 
     blast_pdb_fastas = list(
-        ggrecomb.parent_alignment.query_blast(query_seq, 'pdbaa', 100)
+        schemarecomb.parent_alignment.query_blast(query_seq, 'pdbaa', 100)
     )
     assert blast_pdb_fastas
     assert all(isinstance(bpf, SeqRecord) for bpf in blast_pdb_fastas)
@@ -145,7 +145,7 @@ class TestParentSequences:
     def test_align(self, bgl3_records, mocker, bgl3_parents_aln_str,
                    bgl3_records_aln,
                    wrap_urlopen):
-        mocker.patch('ggrecomb.parent_alignment.urlopen',
+        mocker.patch('schemarecomb.parent_alignment.urlopen',
                      wrap_urlopen(parents_aln_str=bgl3_parents_aln_str))
         parents = sr.ParentSequences(bgl3_records)
         parents.align()
@@ -187,7 +187,7 @@ class TestParentSequences:
 
         if auto_align:
             # align method will be called, patch the HTTP call.
-            mocker.patch('ggrecomb.parent_alignment.urlopen',
+            mocker.patch('schemarecomb.parent_alignment.urlopen',
                          wrap_urlopen(parents_aln_str=bgl3_parents_aln_str))
 
         parents = sr.ParentSequences(input_records, input_pdb, auto_align,
@@ -263,7 +263,7 @@ class TestParentSequences:
         aln_seqs = [str(sr.seq) for sr in bgl3_records_aln]
 
         # Calling align method, patch HTTP call.
-        mocker.patch('ggrecomb.parent_alignment.urlopen',
+        mocker.patch('schemarecomb.parent_alignment.urlopen',
                      wrap_urlopen(parents_aln_str=bgl3_parents_aln_str))
 
         # align(), then new_alignment.
@@ -317,7 +317,7 @@ class TestParentSequences:
         # We already tested list(query_blast(query_seq)) with the bgl3
         # query_seq in test_query_blast, so we can patch it to instantly return
         # the result.
-        mocker.patch('ggrecomb.parent_alignment.query_blast',
+        mocker.patch('schemarecomb.parent_alignment.query_blast',
                      return_value=bgl3_blast_SeqRecords)
 
         parents = sr.ParentSequences(copy.deepcopy(bgl3_records))
@@ -344,7 +344,7 @@ class TestParentSequences:
             'pdbaa': pdb_responses
         }
         mocker.patch(
-            'ggrecomb.parent_alignment.urlopen',
+            'schemarecomb.parent_alignment.urlopen',
             wrap_urlopen(
                 query_seq=query_seq,
                 parents_aln_str=bgl3_parents_aln_str,
@@ -355,7 +355,7 @@ class TestParentSequences:
         )
         # also need to patch Entrez.efetch for BLAST runs
         mocker.patch(
-            'ggrecomb.parent_alignment.Entrez.efetch',
+            'schemarecomb.parent_alignment.Entrez.efetch',
             wrap_efetch(
                 responses=responses,
                 acc_to_database=acc_to_database
@@ -373,7 +373,7 @@ class TestParentSequences:
 
         # mock urlopen for muscle call
         mocker.patch(
-            'ggrecomb.parent_alignment.urlopen',
+            'schemarecomb.parent_alignment.urlopen',
             wrap_urlopen(
                 parents_aln_str=bgl3_parents_aln_str,
             )

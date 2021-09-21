@@ -8,7 +8,7 @@ from urllib import request
 from Bio import SeqIO
 import pytest
 
-import ggrecomb
+import schemarecomb
 
 
 @pytest.fixture
@@ -199,7 +199,8 @@ def rid_to_database(http_dir):
     for database, date in database_query_dates.items():
         fn = http_dir / f'blast_{database}_put_{date}.txt'
         with open(fn, 'rb') as handle:
-            rid, _ = ggrecomb.parent_alignment._parse_qblast_ref_page(handle)
+            rid, _ = schemarecomb.parent_alignment._parse_qblast_ref_page(
+                handle)
         if database == 'refseq':
             # Patch because refseq filename does not match database query name
             database = 'refseq_protein'
@@ -266,9 +267,9 @@ def bgl3_records_aln(fixture_dir):
 
 @pytest.fixture
 def bgl3_parents_aln(bgl3_pdb_filename, bgl3_records_aln):
-    pdb = ggrecomb.PDBStructure.from_pdb_file(bgl3_pdb_filename)
-    parents = ggrecomb.ParentSequences(bgl3_records_aln, pdb_structure=pdb,
-                                       prealigned=True)
+    pdb = schemarecomb.PDBStructure.from_pdb_file(bgl3_pdb_filename)
+    parents = schemarecomb.ParentSequences(bgl3_records_aln, pdb_structure=pdb,
+                                           prealigned=True)
     return parents
 
 
@@ -292,8 +293,9 @@ def bgl3_single_aln_str(fixture_dir):
 
 @pytest.fixture
 def bgl3_parent_alignment(bgl3_records_aln, bgl3_pdb_filename):
-    pdb = ggrecomb.PDBStructure.from_pdb_file(bgl3_pdb_filename)
-    parents = ggrecomb.ParentSequences(bgl3_records_aln, pdb, prealigned=True)
+    pdb = schemarecomb.PDBStructure.from_pdb_file(bgl3_pdb_filename)
+    parents = schemarecomb.ParentSequences(bgl3_records_aln, pdb,
+                                           prealigned=True)
     return parents
 
 
@@ -306,8 +308,9 @@ def mock_bgl3_blast_query(bgl3_records, mocker, blast_http_responses,
 
     This:
         fake_urlopen, fake_efetch = mock_bgl3_blast_query
-        mocker.patch('ggrecomb.parent_alignment.urlopen', fake_urlopen)
-        mocker.patch('ggrecomb.parent_alignment.Entrez.efetch', fake_efetch)
+        mocker.patch('schemarecomb.parent_alignment.urlopen', fake_urlopen)
+        mocker.patch('schemarecomb.parent_alignment.Entrez.efetch',
+                     fake_efetch)
 
     is equivalent to this:
         query_seq = str(bgl3_records[0].seq)
@@ -316,7 +319,7 @@ def mock_bgl3_blast_query(bgl3_records, mocker, blast_http_responses,
         responses = {'refseq_protein': refseq_responses,
                      'pdbaa': pdb_responses}
         mocker.patch(
-            'ggrecomb.parent_alignment.urlopen',
+            'schemarecomb.parent_alignment.urlopen',
             wrap_urlopen(
                 query_seq=query_seq,
                 parents_aln_str=bgl3_parents_aln_str,
@@ -326,7 +329,7 @@ def mock_bgl3_blast_query(bgl3_records, mocker, blast_http_responses,
         )
         # also need to patch Entrez.efetch for BLAST runs
         mocker.patch(
-            'ggrecomb.parent_alignment.Entrez.efetch',
+            'schemarecomb.parent_alignment.Entrez.efetch',
             wrap_efetch(
                 responses=responses,
                 acc_to_database=acc_to_database
@@ -356,8 +359,8 @@ def mock_bgl3_blast_query(bgl3_records, mocker, blast_http_responses,
 @pytest.fixture
 def bgl3_mock_namespace(doctest_namespace, mocker, mock_bgl3_blast_query):
     fake_urlopen, fake_efetch = mock_bgl3_blast_query
-    mocker.patch('ggrecomb.parent_alignment.urlopen', fake_urlopen)
-    mocker.patch('ggrecomb.parent_alignment.Entrez.efetch', fake_efetch)
+    mocker.patch('schemarecomb.parent_alignment.urlopen', fake_urlopen)
+    mocker.patch('schemarecomb.parent_alignment.Entrez.efetch', fake_efetch)
 
 
 @pytest.fixture

@@ -17,7 +17,7 @@
 
 # -- Project information -----------------------------------------------------
 
-project = 'ggrecomb'
+project = 'schemarecomb'
 copyright = '2021, Bennett Bremer'
 author = 'Bennett Bremer'
 
@@ -69,7 +69,7 @@ html_theme = 'alabaster'
 
 
 def setup(app):
-    import ggrecomb as sr
+    import schemarecomb as sr
     # need to assign the names here, otherwise autodoc won't document these
     # classes, and will instead just say 'alias of ...'
     sr.generate_libraries.__name__ = 'generate_libraries'

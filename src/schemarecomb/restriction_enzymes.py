@@ -19,15 +19,15 @@ import os
 from random import choices
 from typing import NamedTuple
 
-from ggrecomb.breakpoints import BreakPoint
-from ggrecomb.breakpoints import Overhang
+from schemarecomb.breakpoints import BreakPoint
+from schemarecomb.breakpoints import Overhang
 
 
 def read_ligation_data(fn: str) -> dict[tuple[str, str], Decimal]:
     """Read in ligation count data.
 
     The file must have annealing counts for each pair of overhangs. See the
-    $PKG_ROOT/src/ggrecomb/gg_data directory for examples. The data in this
+    $PKG_ROOT/src/schemarecomb/gg_data directory for examples. The data in this
     directory comes from `Pryor, Potapov, et al. 2020 <https://journals.plos.
     org/plosone/article?id=10.1371/journal.pone.0238592>`_, but directly
     converted to CSV for ease of input.

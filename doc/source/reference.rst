@@ -5,7 +5,7 @@
 Reference Manual
 ****************
 
-.. currentmodule:: ggrecomb
+.. currentmodule:: schemarecomb
 
 
 Primary Classes and Functions

@@ -20,14 +20,14 @@ from itertools import product
 
 import numpy as np
 
-import ggrecomb
+import schemarecomb
 
 
 class EnergyFunction(ABC):
     """Abstract class for making energy functions."""
     # TODO: Implement general energy function. (v0.2.0)
 
-    def __init__(self, parents: ggrecomb.ParentSequences):
+    def __init__(self, parents: schemarecomb.ParentSequences):
         self.parents = parents
 
     @abstractmethod
@@ -44,7 +44,7 @@ class EnergyFunction(ABC):
         raise NotImplementedError
 
 
-def build_from_str(mod: str, name: str, parents: ggrecomb.ParentSequences):
+def build_from_str(mod: str, name: str, parents: schemarecomb.ParentSequences):
     """Build EnergyFunction subclass instance from name and ParentSequences."""
     e_function_type = getattr(import_module(mod), name)
     return e_function_type(parents)
@@ -126,7 +126,7 @@ class SCHEMA(EnergyFunction):
             the pdb_structure attribute on initialization.
 
     """
-    def __init__(self, parents: ggrecomb.ParentSequences):
+    def __init__(self, parents: schemarecomb.ParentSequences):
         super().__init__(parents)
         try:
             alignment: list[tuple[str, ...]] = parents.alignment

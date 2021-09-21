@@ -11,16 +11,16 @@ from typing import Optional
 from typing import Type
 from typing import Union
 
-from ggrecomb import Library
-from ggrecomb import ParentSequences
-from ggrecomb.breakpoints import BreakPoint
-from ggrecomb.breakpoints import calculate_breakpoints
-from ggrecomb.breakpoints import Overhang
-from ggrecomb.energy_functions import EnergyFunction
-from ggrecomb.energy_functions import SCHEMA
-from ggrecomb.libraries import LibraryConfig
-from ggrecomb.libraries import MutationRateCache
-from ggrecomb.restriction_enzymes import RestrictionEnzyme
+from schemarecomb import Library
+from schemarecomb import ParentSequences
+from schemarecomb.breakpoints import BreakPoint
+from schemarecomb.breakpoints import calculate_breakpoints
+from schemarecomb.breakpoints import Overhang
+from schemarecomb.energy_functions import EnergyFunction
+from schemarecomb.energy_functions import SCHEMA
+from schemarecomb.libraries import LibraryConfig
+from schemarecomb.libraries import MutationRateCache
+from schemarecomb.restriction_enzymes import RestrictionEnzyme
 
 
 @dataclass
@@ -464,8 +464,8 @@ def _generate_libraries(
     the optimizer module.
 
     At present, the only implemented algorithm is SCHEMA-RASPP, which uses
-    :class:`~ggrecomb.optimizers.RASPP` with the
-    :class:`~ggrecomb.energy_functions.SCHEMA` energy function.
+    :class:`~schemarecomb.optimizers.RASPP` with the
+    :class:`~schemarecomb.energy_functions.SCHEMA` energy function.
 
     The start_overhangs and end_overhangs parameters are commonly used to
     insert the assembled chimeras into a vector.

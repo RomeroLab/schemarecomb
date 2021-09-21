@@ -1,4 +1,4 @@
-import ggrecomb as sr
+import schemarecomb as sr
 
 
 def test_defaults(bgl3_parent_alignment):

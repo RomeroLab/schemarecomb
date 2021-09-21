@@ -1,10 +1,10 @@
-"""Recombination site discovery in :class:`~ggrecomb.ParentSequences`."""
+"""Recombination site discovery in :class:`~schemarecomb.ParentSequences`."""
 
 import itertools
 from typing import NamedTuple
 from typing import Optional
 
-from ggrecomb import ParentSequences
+from schemarecomb import ParentSequences
 
 
 class Overhang(NamedTuple):

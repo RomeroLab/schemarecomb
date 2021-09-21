@@ -1,5 +1,5 @@
 [tool.poetry]
-name = 'ggrecomb'
+name = 'schemarecomb'
 version = '0.0.4'
 description = 'Design recombinant protein libraries for Golden Gate Assembly.'
 authors = ['Bennett Bremer <bennettjamesbremer@gmail.com>']
@@ -18,23 +18,23 @@ sphinx = '^4.0.1'
 sphinx-autodoc-typehints = '^1.12.0'
 
 [tool.poetry.urls]
-"Download" = "https://pypi.org/project/ggrecomb"
-"Source Code" = "https://github.com/RomeroLab/ggrecomb"
-"Documentation" = "https://ggrecomb.readthedocs.io/en/latest"
+"Download" = "https://pypi.org/project/schemarecomb"
+"Source Code" = "https://github.com/RomeroLab/schemarecomb"
+"Documentation" = "https://schemarecomb.readthedocs.io/en/latest"
 
 [tool.pytest.ini_options]
 addopts = "--doctest-modules"
 doctest_optionflags = "ELLIPSIS"
 testpaths = [
     "tests/unit/",
-    "src/ggrecomb/libraries.py",
-    "src/ggrecomb/pdb_structure.py",
-    "src/ggrecomb/parent_alignment.py",
+    "src/schemarecomb/libraries.py",
+    "src/schemarecomb/pdb_structure.py",
+    "src/schemarecomb/parent_alignment.py",
     "README.rst"
 ]
 
 # [tool.poetry.scripts]
-# ggrecomb = {reference = "bin/ggrecomb", type="file"}
+# schemarecomb = {reference = "bin/schemarecomb", type="file"}
 
 [build-system]
 requires = ["poetry-core>=1.1.0a5"]

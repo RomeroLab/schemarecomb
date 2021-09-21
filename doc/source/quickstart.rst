@@ -10,25 +10,25 @@ Quickstart
 
 To get started, you'll need a FASTA file with one or more parent amino acid sequences. If desired, we can find additional parents with BLAST.
 
-Optionally, you can provide a PDB structure file, but otherwise we'll find one that matches the first parent sequence you provided. See :class:`ggrecomb.PDBStructure` for more details.
+Optionally, you can provide a PDB structure file, but otherwise we'll find one that matches the first parent sequence you provided. See :class:`schemarecomb.PDBStructure` for more details.
 
 .. note::
 
-    This guide assumes you're using Python 3.9 on Linux. If you use MacOS, things will probably work the same, but no guarantees. If you have Windows, I recommend you use the `Windows Subsystem for Linux  <https://docs.microsoft.com/en-us/windows/wsl/install-win10>`_, but again, no guarantees. Please raise an issue on the ggrecomb GitHub page if you have OS difficulty.
+    This guide assumes you're using Python 3.9 on Linux. If you use MacOS, things will probably work the same, but no guarantees. If you have Windows, I recommend you use the `Windows Subsystem for Linux  <https://docs.microsoft.com/en-us/windows/wsl/install-win10>`_, but again, no guarantees. Please raise an issue on the schemarecomb GitHub page if you have OS difficulty.
    
 
-1. Install ggrecomb
--------------------
+1. Install schemarecomb
+-----------------------
 
-ggrecomb is available on pip::
+schemarecomb is available on pip::
 
-    $ pip install ggrecomb
+    $ pip install schemarecomb
 
-Or you can install ggrecomb from source. See :ref:`Installation<install>` for more information.
+Or you can install schemarecomb from source. See :ref:`Installation<install>` for more information.
 
-In a Python script, import ggrecomb::
+In a Python script, import schemarecomb::
 
-    import ggrecomb
+    import schemarecomb
 
 
 2. Make a ParentSequences
@@ -37,12 +37,13 @@ In a Python script, import ggrecomb::
 Load your parent FASTA file and find additional parents if needed. For this example, we'll use beta-glucosidase (bgl3, PDB ID 1GNX)::
 
     parent_fn = 'bgl3.fasta'
-    p_aln = ggrecomb.ParentSequences.from_fasta(parent_fn)
-    p_aln.obtain_seqs(num_final_seqs=4, desired_indentity=0.7)
+    p_aln = schemarecomb.ParentSequences.from_fasta(parent_fn)
+    p_aln.obtain_seqs(num_final_seqs=4, desired_identity=0.7)
+    p_aln.get_PDB()
 
-After running, p_aln is a ParentSequences with four parents that have about 70% pairwise idenity.
+After running, p_aln is a ParentSequences with four parents that have about 70% pairwise identity and the closest PDB structure.
 
-See :class:`ggrecomb.ParentSequences` for more options.
+See :class:`schemarecomb.ParentSequences` for more options. Viewing :class:`schemarecomb.PDBStructure` may also be helpful.
 
 
 3. Run the SCHEMA-RASPP algorithm
@@ -50,22 +51,21 @@ See :class:`ggrecomb.ParentSequences` for more options.
 
 SCHEMA-RASPP finds potential libraries and calculates the probability of Golden Gate assembly for each::
 
-    raspp = ggrecomb.RASPP(p_aln, 5)
-    libraries = raspp.vary_m_proxy(60, 100)
+    libraries = schemarecomb.generate_libraries(p_aln, 6)
 
-This finds libraries with six blocks (five breakpoints) with block sizes between 60 and 100 amino acids.
+This finds libraries with six blocks (five breakpoints).
 
-See ggrecomb.RASPP (TODO: make this link after refactoring PA docstring) for more options.
+See :func:`schemarecomb.generate_libraries` for more options.
 
 
 4. Select and save a library
 ----------------------------
 
-Let RASPP automatically select a library::
+Select the library with highest mutation_rate - energy and save generated DNA blocks::
 
-    best_lib = ggrecomb.LibSelector.auto(libraries)
-    best_lib.save('bgl3_library_dna.fasta')
+    best_lib = max(libraries, key=lambda x: x.mutation_rate - x.energy)
+    SeqIO.write(best_lib.dna_blocks, 'bgl3_library_dna.fasta', 'fasta')
 
 The DNA fragments in FASTA format in a file named "bgl3_library_dna.fasta". These fragments are ready to order and assemble with `NEB's Golden Gate Assembly Kit <https://www.neb.com/products/e1601-neb-golden-gate-assembly-mix>`_. You can simulate the Golden Gate reaction using SnapGene.
 
-See ggrecomb.LibSelector for more options.
+See :class:`schemarecomb.Library` for more options.

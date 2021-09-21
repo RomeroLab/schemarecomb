@@ -1,8 +1,8 @@
-With ggrecomb, you can design easy-to-use recombinant protein libraries, even if you aren't a computational expert.
+With schemarecomb, you can design easy-to-use chimeric protein libraries, even if you aren't a computational expert.
 
 Here's a simple example::
 
-  >>> import ggrecomb as sr
+  >>> import schemarecomb as sr
   >>> from Bio import SeqIO
   >>>
   >>> # pytest stuff, you can ignore this.
@@ -24,11 +24,10 @@ Here's a simple example::
   >>> best_lib = max(libraries, key=lambda x: x.mutation_rate - x.energy)
   >>>
   >>> # Save the generated DNA fragments.
-  >>> # out_fn = tempdir + '/' + 'bgl3_dna_frags.fasta'
   >>> SeqIO.write(best_lib.dna_blocks, out_fn, 'fasta')
   42
 
-With this simple script, we generated a six parent, seven block chimeric beta-glucosidase library. The saved DNA fragments can be ordered directly from a DNA synthesis provider and assembled with `NEB's Golden Gate Assembly Kit <https://www.neb.com/products/e1601-neb-golden-gate-assembly-mix>`_. There's no worrying about adding restriction sites since ggrecomb automatically adds BsaI sites.
+With this simple script, we generated a six parent, seven block chimeric beta-glucosidase library. The saved DNA fragments can be ordered directly from a DNA synthesis provider and assembled with `NEB's Golden Gate Assembly Kit <https://www.neb.com/products/e1601-neb-golden-gate-assembly-mix>`_. There's no worrying about adding restriction sites since schemarecomb automatically adds BsaI sites.
 
 
 Why Recombinant Proteins?
@@ -38,7 +37,7 @@ Engineering proteins with recombinant libraries has a number of advantages over 
 
 So why doesn't everybody do recombinant protein engineering? Historically, there's a number of technical challenges that made recombinant libraries impractical for general use. Namely, a great deal of computational expertise and time is needed to manually generate and select suitable libraries. Even with the required computational resources, mutagenesis was significantly easier than assembling 8+ DNA fragments when protein engineering was developing its fundamentals, so nearly everybody opted for traditional directed evolution and passed that practice down to their students and mentees.
 
-The goal of this software package is to make recombinant library design accessible and convenient for protein engineers of all computational skill levels. ggrecomb designs libraries that come ready to order and construct with a simple Golden Gate Assembly reaction. To learn more, read the `ggrecomb documentation <https://ggrecomb.readthedocs.io/en/latest/>`_.
+The goal of this software package is to make recombinant library design accessible and convenient for protein engineers of all computational skill levels. schemarecomb designs libraries that come ready to order and construct with a simple Golden Gate Assembly reaction. To learn more, read the `schemarecomb documentation <https://schemarecomb.readthedocs.io/en/latest/>`_.
 
 
 Installation
@@ -46,7 +45,7 @@ Installation
 
 .. code-block:: bash
 
-    $ pip install ggrecomb
+    $ pip install schemarecomb
 
 
 Documentation
@@ -54,7 +53,7 @@ Documentation
 
 Package reference material and helpful guides can be found at:
 
-    https://ggrecomb.readthedocs.io/en/latest/
+    https://schemarecomb.readthedocs.io/en/latest/
 
 
 Citing
@@ -63,6 +62,6 @@ Citing
 ..
     https://www.software.ac.uk/how-cite-software?_ga=1.54830891.1882560887.1489012280
 
-If you use ggrecomb in a scientific publication, please cite it as::
+If you use schemarecomb in a scientific publication, please cite it as::
 
-    Bremer, B. & Romero, P. (2021). ggrecomb [Software]. Available from https://github.com/RomeroLab/ggrecomb.
+    Bremer, B. & Romero, P. (2021). schemarecomb [Software]. Available from https://github.com/RomeroLab/schemarecomb.

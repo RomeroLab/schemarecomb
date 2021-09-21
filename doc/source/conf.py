@@ -22,7 +22,8 @@ copyright = '2021, Bennett Bremer'
 author = 'Bennett Bremer'
 
 # The full version, including alpha/beta/rc tags
-release = '0.0.1'
+
+release = '0.0.3'
 
 
 # -- General configuration ---------------------------------------------------
@@ -68,12 +69,13 @@ html_theme = 'alabaster'
 
 
 def setup(app):
-    import ggrecomb
+    import ggrecomb as sr
     # need to assign the names here, otherwise autodoc won't document these
     # classes, and will instead just say 'alias of ...'
-    ggrecomb.Library.__name__ = 'Library'
-    ggrecomb.PDBStructure.__name__ = 'PDBStructure'
-    ggrecomb.ParentSequences.__name__ = 'ParentSequences'
+    sr.generate_libraries.__name__ = 'generate_libraries'
+    sr.Library.__name__ = 'Library'
+    sr.PDBStructure.__name__ = 'PDBStructure'
+    sr.ParentSequences.__name__ = 'ParentSequences'
 
 
 # Changes autoclass "variables" to "attributes".

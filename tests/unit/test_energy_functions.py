@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 import pytest
 
 # from ggrecomb import ParentSequences
@@ -68,7 +70,7 @@ def eq_6(start, end, parents):
             manual_energy_sum += chimera_e(seqr, seqt, start, end)
     # Don't need to do subtraction part of eq. 6 b/c it will always be 0 in
     # SCHEMA.
-    return manual_energy_sum / num_chims
+    return Decimal(manual_energy_sum / num_chims)
 
 
 def test_block_energy(bgl3_trunc_parents):

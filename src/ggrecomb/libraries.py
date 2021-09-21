@@ -9,7 +9,6 @@ manipulating libraries.
 from collections import deque
 from collections.abc import MutableMapping
 from dataclasses import dataclass
-from dataclasses import field
 from decimal import Decimal
 from functools import cached_property
 from importlib import metadata
@@ -19,6 +18,9 @@ from re import fullmatch
 from random import choice
 from typing import Optional
 from typing import Union
+
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
 
 import ggrecomb
 from ggrecomb.breakpoints import BreakPoint
@@ -30,6 +32,7 @@ from ggrecomb.restriction_enzymes import RestrictionEnzyme
 
 
 # List of 31 common codons {+stop and gap) in E. coli.
+_AA_C31: dict[str, set[str]]
 _AA_C31 = {'A': {'GCT', 'GCA'}, 'R': {'CGT', 'CGA'}, 'N': {'AAT'},
            'D': {'GAT'}, 'C': {'TGT'}, 'Q': {'CAA', 'CAG'}, 'E': {'GAA'},
            'G': {'GGT'}, 'H': {'CAT', 'CAC'}, 'I': {'ATT', 'ATC'},
@@ -99,6 +102,17 @@ class MutationRateCache(MutableMapping):
             else:
                 curr_bps.append(bp)
         breakpoint_groups.append(curr_bps)
+
+        # Add 0 and len(parents.alignment) if not already included, for safety.
+        # Nothing gets hurt if these are never accessed. Libraries that don't
+        # have overhangs at 0 and aln_len may or may not have these indices in
+        # their representations.
+        bp_positions = {bp.position for bp in valid_bps}
+        if 0 not in bp_positions:
+            breakpoint_groups.append([0])
+        aln_len = len(parents.alignment)
+        if aln_len not in bp_positions:
+            breakpoint_groups.append([aln_len])
 
         # Get the mapping from each breakpoint index to the breakpoint's group
         # index.
@@ -221,7 +235,6 @@ def average_mutations(
     return mut_rate
 
 
-@dataclass
 class LibraryConfig:
     """Holds parameters shared across a collection of Library instances.
 
@@ -244,12 +257,23 @@ class LibraryConfig:
             by reusing values from adjacent libraries.
         amino_to_cdn: Mapping of amino acids to codons. Forms a simple codon
             optimization.
+
     """
-    energy_function: EnergyFunction
-    gg_enzyme: RestrictionEnzyme
-    gg_threshold: Union[float, Decimal] = 1.0
-    mr_cache: Optional[MutationRateCache] = None
-    amino_to_cdn: dict[str, set[str]] = field(default_factory=lambda: _AA_C31)
+
+    def __init__(
+        self,
+        energy_function: EnergyFunction,
+        gg_enzyme: RestrictionEnzyme,
+        gg_threshold: Union[float, Decimal] = 1.0,
+        mr_cache: Optional[MutationRateCache] = None,
+        amino_to_cdn: Optional[dict[str, set[str]]] = None,
+    ):
+        self.energy_function = energy_function
+        self.gg_enzyme = gg_enzyme
+        self.gg_threshold = gg_threshold
+        self.mr_cache = mr_cache
+        if amino_to_cdn is None:
+            self.amino_to_cdn = _AA_C31
 
 
 @dataclass
@@ -259,8 +283,8 @@ class _Library:
     This class is not usually instantiated by users, but instead by another
     package function. If generating many libraries, the simplest construction
     method is via the :meth:`ggrecomb.calc_from_config` constructor, which uses
-    a :class:`~ggrecomb.libraries.LibraryConfig` to consolidate or compute all
-    parameters except breakpoints and energy.
+    a :class:`~ggrecomb.libraries.LibraryConfig` to consolidate or compute
+    all parameters except breakpoints and energy.
 
     A library consists of a parent alignment and a series of breakpoints, which
     are the indices of the alignment where the parent sequences are recombined
@@ -285,8 +309,8 @@ class _Library:
     overhangs chosen) based on data from Gregory Lohman and collaborators at
     NEB (Potapov et al. 2018). See Pryor, Potapov, et al. 2020 for details on
     the biology and mathematics behind this technique. (Note that the
-    calculation was developed independently by the authors of ggrecomb in 2019
-    after viewing a talk by Dr. Lohman.)
+    calculation was developed independently by the authors of ggrecomb in
+    2019 after viewing a talk by Dr. Lohman.)
 
     See :mod:`ggrecomb.libraries` for classes and functions that handle
     Library instances.
@@ -343,6 +367,11 @@ class _Library:
             one of the parents in energy_function.parents. Each element in an
             inner list is a DNA sequence that translates to amino acid blocks
             from the parent.
+        dna_blocks (list[SeqRecord]): Chimeric DNA blocks with id
+            '<parent_name>_block-<block number>'. Groups of chimeric blocks
+            with compatible block numbers (from 0 to number of blocks,
+            inclusive and all unique) may be Golden Gate Assembled to form DNA
+            that may be transcribed and translated into chimeric proteins.
 
     """
 
@@ -401,9 +430,10 @@ class _Library:
             oh_len = resenz.overhang_len
 
             dna_blocks = []
-            for parent_aa in aln_parents:
+            for parent_sr, parent_aa in zip(parents.records, aln_parents):
                 par_blocks = []
-                for ohs, positions in zip(start_end_overhangs, blk_indices):
+                for blk_num, (ohs, positions) \
+                        in enumerate(zip(start_end_overhangs, blk_indices)):
                     oh_start, oh_end = ohs
                     start, end = positions
 
@@ -473,10 +503,21 @@ class _Library:
                         end_dna = amino_overhang + resenz.rev_restriction_site
 
                     # Add gg sites.
-                    dna_block = beg_dna + dna_block_internal + end_dna
-                    par_blocks.append(dna_block)
+                    block_seq = Seq(beg_dna + dna_block_internal + end_dna)
 
-                dna_blocks.append(par_blocks)
+                    # TODO: Maybe want to change description to include block
+                    # info?
+                    block_name = parent_sr.id + f'_block-{blk_num}'
+                    block_sr = SeqRecord(
+                        block_seq,
+                        id=block_name,
+                        name=block_name,
+                        description=parent_sr.description
+                    )
+
+                    par_blocks.append(block_sr)
+
+                dna_blocks.extend(par_blocks)
 
             # Cache so that the generated blocks don't change.
             self._dna_blocks = dna_blocks

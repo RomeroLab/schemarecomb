@@ -2,27 +2,33 @@ With ggrecomb, you can design easy-to-use recombinant protein libraries, even if
 
 Here's a simple example::
 
-  >>> import ggrecomb
+  >>> import ggrecomb as sr
+  >>> from Bio import SeqIO
   >>>
-  >>> # Specify library parameters.
-  >>> parent_fn = 'P450_sequences.fasta'  # parent_file: 3 parents
-  >>> num_blocks = 8  # number of blocks in chimeras
-  >>> min_block_len = 40  # min length of chimeric blocks
-  >>> max_block_len = 80  # max length of chimeric blocks
+  >>> # pytest stuff, you can ignore this.
+  >>> getfixture('bgl3_mock_namespace')
+  >>> tempdir = getfixture('tmpdir')  #doctest: +ELLIPSIS
+  >>> out_fn = tempdir / 'bgl3_dna_frags.fasta'
   >>>
   >>> # Create a parent alignment and get the closest PDB structure.
-  >>> parents = ggrecomb.ParentSequences.from_fasta(parent_fn, auto_align=True)
-  >>> parents.get_PDB()
+  >>> fn = 'tests/fixtures/bgl3_1-parent/bgl3_p0.fasta'
+  >>> parents = sr.ParentSequences.from_fasta(fn)
+  >>> parents.obtain_seqs(6, 0.7)  # BLAST takes about 10 minutes.
+  >>> parents.align()  # MUSCLE takes about a minute.
+  >>> parents.get_PDB()  # BLAST takes about 10 minutes.
   >>>
   >>> # Run SCHEMA-RASPP to get libraries.
-  >>> raspp = ggrecomb.RASPP(parents, num_blocks)
-  >>> library_list = raspp.vary_m_proxy(min_block_len, max_block_len)
+  >>> libraries = sr.generate_libraries(parents, 7)
   >>>
   >>> # Auto-select the best library and save the resulting DNA fragments.
-  >>> best_lib = ggrecomb.libraries.auto_select(library_list)
-  >>> best_lib.save('library_dna_fragments.fasta')
+  >>> best_lib = max(libraries, key=lambda x: x.mutation_rate - x.energy)
+  >>>
+  >>> # Save the generated DNA fragments.
+  >>> # out_fn = tempdir + '/' + 'bgl3_dna_frags.fasta'
+  >>> SeqIO.write(best_lib.dna_blocks, out_fn, 'fasta')
+  42
 
-With this simple script, we generated a three parent, eight block chimeric P450 library. The saved DNA fragments can be ordered directly from a DNA synthesis provider and assembled with `NEB's Golden Gate Assembly Kit <https://www.neb.com/products/e1601-neb-golden-gate-assembly-mix>`_. There's no worrying about adding restriction sites since ggrecomb automatically adds BsaI sites.
+With this simple script, we generated a six parent, seven block chimeric beta-glucosidase library. The saved DNA fragments can be ordered directly from a DNA synthesis provider and assembled with `NEB's Golden Gate Assembly Kit <https://www.neb.com/products/e1601-neb-golden-gate-assembly-mix>`_. There's no worrying about adding restriction sites since ggrecomb automatically adds BsaI sites.
 
 
 Why Recombinant Proteins?

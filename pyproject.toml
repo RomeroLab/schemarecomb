@@ -1,6 +1,6 @@
 [tool.poetry]
 name = 'ggrecomb'
-version = '0.0.3'
+version = '0.0.4'
 description = 'Design recombinant protein libraries for Golden Gate Assembly.'
 authors = ['Bennett Bremer <bennettjamesbremer@gmail.com>']
 
@@ -27,14 +27,14 @@ addopts = "--doctest-modules"
 doctest_optionflags = "ELLIPSIS"
 testpaths = [
     "tests/unit/",
+    "src/ggrecomb/libraries.py",
     "src/ggrecomb/pdb_structure.py",
     "src/ggrecomb/parent_alignment.py",
-    "src/ggrecomb/libraries.py",
-    # "README.rst" TODO: add this when v0.1 methods are filled out
+    "README.rst"
 ]
 
 # [tool.poetry.scripts]
-# ggrecom = {reference = "bin/ggrecom", type="file"}
+# ggrecomb = {reference = "bin/ggrecomb", type="file"}
 
 [build-system]
 requires = ["poetry-core>=1.1.0a5"]

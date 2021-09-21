@@ -8,12 +8,14 @@ Reference Manual
 .. currentmodule:: ggrecomb
 
 
-Primary Classes
-===============
+Primary Classes and Functions
+=============================
 
 .. autosummary::
     :toctree: generated/
-    :template: class.rst
+    :template: class_or_function.rst
+
+    generate_libraries
 
     Library
 
@@ -34,6 +36,8 @@ Additional Modules
     energy_functions
 
     libraries
+
+    optimizers
 
     parent_alignment
     

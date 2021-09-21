@@ -12,6 +12,9 @@ versions.
 
 """
 
+from abc import abstractmethod
+from abc import ABC
+from decimal import Decimal
 from importlib import import_module
 from itertools import product
 
@@ -20,12 +23,23 @@ import numpy as np
 import ggrecomb
 
 
-class EnergyFunction:
+class EnergyFunction(ABC):
     """Abstract class for making energy functions."""
     # TODO: Implement general energy function. (v0.2.0)
+
     def __init__(self, parents: ggrecomb.ParentSequences):
         self.parents = parents
 
+    @abstractmethod
+    def block_energy(self, start: int, end: int) -> Decimal:
+        raise NotImplementedError
+
+    @abstractmethod
+    def increment_block_energy(self, start: int, new_end: int) -> Decimal:
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
     def import_mod_cls(self) -> tuple[str, str]:
         raise NotImplementedError
 
@@ -113,6 +127,7 @@ class SCHEMA(EnergyFunction):
 
     """
     def __init__(self, parents: ggrecomb.ParentSequences):
+        super().__init__(parents)
         try:
             alignment: list[tuple[str, ...]] = parents.alignment
         except AttributeError:
@@ -141,9 +156,9 @@ class SCHEMA(EnergyFunction):
             E_matrix[i, j] = broken / (len(AAs_i)**2)
 
         self.E_matrix = E_matrix
-        self.parents = parents
+        # self.parents = parents
 
-    def block_energy(self, start: int, end: int) -> float:
+    def block_energy(self, start: int, end: int) -> Decimal:
         r"""Average SCHEMA energy of adding a block to a library.
 
         This is Endelman et al. 2004 eq 6. Move the r and t sums to the outside
@@ -163,9 +178,9 @@ class SCHEMA(EnergyFunction):
             Average SCHEMA energy of adding the block.
         """
         energy = self.E_matrix[start:end, end:].sum()
-        return energy
+        return Decimal(energy)
 
-    def increment_block_energy(self, start: int, new_end: int) -> float:
+    def increment_block_energy(self, start: int, new_end: int) -> Decimal:
         """Difference in average SCHEMA energy when block size is decremented.
 
         This is equivalent to
@@ -190,7 +205,7 @@ class SCHEMA(EnergyFunction):
         old_end = new_end - 1
         neg = self.E_matrix[start:old_end, old_end].sum()
         pos = self.E_matrix[old_end, new_end:].sum()
-        return pos - neg
+        return Decimal(pos - neg)
 
     @property
     def import_mod_cls(self) -> tuple[str, str]:

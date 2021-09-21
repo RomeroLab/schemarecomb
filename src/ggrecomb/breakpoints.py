@@ -162,10 +162,10 @@ def calculate_breakpoints(
             Golden Gate site design and library sequence design. Change
             this to include or exclude certain codons based on codon
             optimization schemes, reassigned codons, etc.
-        start_overhang: Positional shift and nucleotide sequence of Golden
+        start_overhangs: Positional shift and nucleotide sequence of Golden
             Gate site for vector insertion at start of sequence. Not
             factored into calculations if None.
-        end_overhang: Positional shift and nucleotide sequence of Golden
+        end_overhangs: Positional shift and nucleotide sequence of Golden
             Gate site for vector insertion at end of sequence. Not factored
             into calculations if None.
 

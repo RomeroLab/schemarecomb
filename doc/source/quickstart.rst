@@ -24,7 +24,7 @@ schemarecomb is available on pip::
 
     $ pip install schemarecomb
 
-Or you can install schemarecomb from source. See :ref:`Installation<install>` for more information.
+Or you can install schemarecomb from source. 
 
 In a Python script, import schemarecomb::
 

@@ -47,6 +47,8 @@ With this simple script, we generated a six parent, seven block chimeric beta-gl
 
 View the :ref:`Quickstart Guide <quickstart>` for more example scripts and the :ref:`Reference Manual <reference>` for more details on specific classes and modules.
 
+If you would like to contribute, view the :ref:`Contributing <contribute>` tutorial.
+
 Biologist's, Programmer's, and Installation guides coming in version 0.2.0.
 
 
@@ -57,10 +59,13 @@ Contents
    :maxdepth: 2
     
    quickstart
+   contribute
+   reference
+
+..
    install
    biologists
    programmers
-   reference
 
 
 Indices and tables

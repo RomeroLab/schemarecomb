@@ -496,7 +496,8 @@ class _Library:
                                                  ' end_dna.')
 
                             oh_seq = oh_end.seq.lower()
-                            amino_overhang = matching_codon[:begin_dot]
+                            amino_overhang = (matching_codon[:begin_dot]
+                                              + oh_seq)
                         else:
                             amino_overhang = oh_start.seq.lower()
 

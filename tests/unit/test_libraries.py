@@ -7,6 +7,7 @@ import random
 import pytest
 
 import schemarecomb as sr
+from Bio import Seq
 
 
 @pytest.fixture
@@ -159,6 +160,30 @@ def test_json(lib_config, breakpoints):
     assert in_lib.amino_to_cdn == lib.amino_to_cdn
 
 
+def bsai_cut(frag):
+    """BsaI digest fragment"""
+    if frag[:6] == "ggtctc":
+        frag = frag[7:]
+
+    if frag[-6:] == "gagacc":
+        frag = frag[:-7]
+
+    return frag
+
+
+def assemble(cut_frags):
+    """ Assemble compatible overhangs"""
+    overhangs = []
+    assembly = cut_frags[0]
+    for frag in cut_frags[1:]:
+        if assembly[-4:] == frag[:4]:
+            assembly += frag[4:]
+            overhangs.append(frag[:4].upper())
+        else:
+            raise ValueError
+    return assembly, overhangs
+
+
 def test_dna_blocks(lib_config, breakpoints):
     parents = lib_config.energy_function.parents
     max_ind = len(parents.alignment)
@@ -168,13 +193,25 @@ def test_dna_blocks(lib_config, breakpoints):
 
     lib = sr.Library.calc_from_config(bp_set, Decimal(1.0), lib_config)
 
-    # TODO: Simulate Golden Gate and compare to parents.
+    # see how many fragments and parents in assembly.
+    no_frags = len(lib.block_indices)
+    hom_seq = parents.records
 
-    assert lib.dna_blocks
-    for a in lib.dna_blocks:
-        assert a
-        for b in a:
-            assert b
+    # BsaI digest
+    cut_frags = [bsai_cut(frag.seq) for frag in lib.dna_blocks]
+    overhangs_list = []
+
+    for hom in range(0, len(hom_seq)):
+        start = (hom) * no_frags
+        end = (hom + 1) * no_frags
+        print(f'assembling {start} to {end}')
+        assembly, overhangs = assemble(cut_frags[start:end])
+        overhangs_list.append(overhangs)
+        assembly_aa_seq = str(Seq.Seq(assembly).translate())
+
+        br_aa_seq = str(hom_seq[hom].seq).replace("-", "")
+
+        assert assembly_aa_seq == br_aa_seq
 
 
 # TODO: Test find_best_overhangs.

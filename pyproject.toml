@@ -10,9 +10,9 @@ biopython = '^1.79'
 numpy = '<2.0'
 scipy = '^1.6.3'
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
 flake8 = "^3.9.2"
-mypy = "^0.910"
+mypy = "^2.1.0"
 pytest = '^9.0.3'
 pytest-mock = '^3.6.1'
 sphinx = '^4.0.1'

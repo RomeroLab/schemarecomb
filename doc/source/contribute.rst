@@ -9,7 +9,7 @@ Thanks for contributing! If you would like to suggest large-scale refactors, fee
 We'll use the Fork-and-Branch Workflow. Here's more information on it: `https://blog.scottlowe.org/2015/01/27/using-fork-branch-git-workflow/`.
 
 
-Requirements: schemarecomb requires Python 3.9. This guide assumes that the 'python' command calls Python 3.9.
+Requirements: schemarecomb requires Python 3.10 or higher. This guide assumes that the 'python' command calls Python 3.10.
 
 
 1. `Fork the repository <https://docs.github.com/en/get-started/quickstart/fork-a-repo>`_. 

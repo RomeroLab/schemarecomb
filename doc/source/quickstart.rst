@@ -14,7 +14,7 @@ Optionally, you can provide a PDB structure file, but otherwise we'll find one t
 
 .. note::
 
-    This guide assumes you're using Python 3.9 on Linux. If you use MacOS, things will probably work the same, but no guarantees. If you have Windows, I recommend you use the `Windows Subsystem for Linux  <https://docs.microsoft.com/en-us/windows/wsl/install-win10>`_, but again, no guarantees. Please raise an issue on the schemarecomb GitHub page if you have OS difficulty.
+    This guide assumes you're using Python 3.10 on Linux. If you use MacOS, things will probably work the same, but no guarantees. If you have Windows, I recommend you use the `Windows Subsystem for Linux  <https://docs.microsoft.com/en-us/windows/wsl/install-win10>`_, but again, no guarantees. Please raise an issue on the schemarecomb GitHub page if you have OS difficulty.
    
 
 1. Install schemarecomb

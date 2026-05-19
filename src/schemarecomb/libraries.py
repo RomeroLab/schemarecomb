@@ -403,126 +403,143 @@ class _Library:
 
     @property
     def dna_blocks(self):
-        # Not cached_property for construction purposes.
+        """
+        Generates DNA blocks for Golden Gate assembly.
+
+        Finds a single 'design' codon/amino acid combination chosen by
+        the optimizer for each junction by testing all possibilities for all
+        homologues at the correct sequence position, ensuring consistent
+        overhangs.
+        """
         try:
             return self._dna_blocks
         except AttributeError:
-            # Must calculate dna_blocks for first time.
             parents = self.energy_function.parents
-            aln_parents = zip(*parents.alignment)
-
+            breakpoints = self.breakpoints
             blk_indices = self.block_indices
-
             overhangs = self.gg_overhangs.copy()
 
-            # Need to add dummy start and end overhangs if blk_indices[0] or
-            # [-1] do not match breakpoints.
-            DUMMY_OVERHANG = Overhang(-1, '')
-            if blk_indices[0] != self.breakpoints[0].position:
-                overhangs.insert(0, DUMMY_OVERHANG)
-            if blk_indices[-1] != self.breakpoints[-1].position:
-                overhangs.append(DUMMY_OVERHANG)
+            breakpoint_map = breakpoints.copy()
+            if blk_indices[0] != breakpoints[0].position:
+                overhangs.insert(0, None)
+                breakpoint_map.insert(0, None)
 
-            start_end_overhangs = [ohs for ohs in zip(overhangs,
-                                                      overhangs[1:])]
+            if blk_indices[-1] != breakpoints[-1].position:
+                overhangs.append(None)
+                breakpoint_map.append(None)
+
+            start_end_overhangs = list(zip(overhangs, overhangs[1:]))
+            start_end_breakpoints = list(
+                zip(breakpoint_map, breakpoint_map[1:]))
 
             resenz = self.gg_enzyme
             oh_len = resenz.overhang_len
-
             dna_blocks = []
-            for parent_sr, parent_aa in zip(parents.records, aln_parents):
+
+            for parent_sr in parents.records:
+                parent_aa = parent_sr.seq
                 par_blocks = []
-                for blk_num, (ohs, positions) \
-                        in enumerate(zip(start_end_overhangs, blk_indices)):
-                    oh_start, oh_end = ohs
+                for blk_num, positions in enumerate(blk_indices):
+                    oh_start, oh_end = start_end_overhangs[blk_num]
+                    bp_start, bp_end = start_end_breakpoints[blk_num]
                     start, end = positions
 
-                    aa_block = [aa for aa in parent_aa[start:end] if aa != '-']
+                    aa_block = [aa for aa
+                                in parent_aa[start:end] if aa != '-']
+                    aa_start_parent, *aa_block_internal, \
+                        aa_end_parent = aa_block
+                    cdn_options = [self.amino_to_cdn[aa] for aa in
+                                   aa_block_internal]
+                    dna_block_internal = ''.join(
+                        choice(tuple(cdn_set)) for cdn_set in cdn_options)
 
-                    # Start and end are affected by the GG sites.
-                    aa_start, *aa_block_internal, aa_end = aa_block
-
-                    cdn_options = [self.amino_to_cdn[aa] for aa
-                                   in aa_block_internal]
-                    dna_block_internal = ''.join(choice(tuple(cdn_set))
-                                                 for cdn_set in cdn_options)
-
-                    # Handle start.
-                    if oh_start == DUMMY_OVERHANG:
-                        beg_dna = choice(tuple(self.amino_to_cdn[aa_start]))
+                    # Handle start of the block
+                    if oh_start is None:
+                        beg_dna = choice(
+                            tuple(self.amino_to_cdn[aa_start_parent]))
                     else:
-                        # Number of dots at end of pattern.
                         end_dot = 6 - oh_start.ind - oh_len
+                        pattern = (oh_start.seq + '.' * end_dot)[-3:]
+
+                        pos = bp_start.position
+                        possible_aas = {p.seq[pos] for p in parents.records if
+                                        p.seq[pos] != '-'}
+
+                        matching_codon = ''
+                        for aa in possible_aas:
+                            if aa in self.amino_to_cdn:
+                                for codon in self.amino_to_cdn[aa]:
+                                    if fullmatch(pattern, codon):
+                                        matching_codon = codon
+                                        break
+                            if matching_codon:
+                                break
+
+                        if not matching_codon:
+                            # Should never happen
+                            raise ValueError(
+                                f"Could not find a matching codon for pattern "
+                                f"'{pattern}' at position {pos}."
+                                f" Searched AAs: {possible_aas}")
 
                         if end_dot:
-                            # Find the valid codon pattern, e.g. ATG, CG*
-                            pattern = (oh_start.seq + '.'*end_dot)[-3:]
-                            matching_codon = ''
-                            for cand_codon in self.amino_to_cdn[aa_start]:
-                                if fullmatch(pattern, cand_codon) is not None:
-                                    matching_codon = cand_codon
-                                    break
-                            if matching_codon == '':
-                                # This should never happen.
-                                raise ValueError('No matching codon found.')
-
-                            # Eliminate parts of codon overlapping with
-                            # overhang.
-                            oh_seq = oh_start.seq.lower()
-                            overhang_amino = oh_seq + matching_codon[-end_dot:]
+                            overhang_amino = oh_start.seq.lower()\
+                                             + matching_codon[-end_dot:]
                         else:
-                            # Overhang encompasses amino.
                             overhang_amino = oh_start.seq.lower()
-
-                        # TODO: add additional bases at the ends?
                         beg_dna = resenz.for_restriction_site + overhang_amino
 
-                    if oh_end == DUMMY_OVERHANG:
-                        end_dna = choice(tuple(self.amino_to_cdn[aa_end]))
+                    # Handle end of the block
+                    if oh_end is None:
+                        end_dna = choice(
+                            tuple(self.amino_to_cdn[aa_end_parent]))
                     else:
-                        # Number of dots at beginning of pattern.
                         begin_dot = oh_end.ind
+                        pattern = ('.' * begin_dot + oh_end.seq)[:3]
+
+                        #: The amino acid being modified is at position-1 of
+                        # the breakpoint.
+                        pos = bp_end.position - 1
+
+                        possible_aas = {p.seq[pos] for p in parents.records if
+                                        p.seq[pos] != '-'}
+
+                        matching_codon = ''
+                        for aa in possible_aas:
+                            if aa in self.amino_to_cdn:
+                                for codon in self.amino_to_cdn[aa]:
+                                    if fullmatch(pattern, codon):
+                                        matching_codon = codon
+                                        break
+                            if matching_codon:
+                                break
+
+                        if not matching_codon:
+                            # Should never raise
+                            raise ValueError(
+                                f"Could not find a matching codon for pattern"
+                                f" '{pattern}' at position {pos + 1} "
+                                f"(AA at pos {pos}). "
+                                f"Searched AAs: {possible_aas}")
 
                         if begin_dot:
-                            pattern = ('.'*begin_dot + oh_end.seq)[:3]
-                            matching_codon = ''
-                            for cand_codon in self.amino_to_cdn[aa_end]:
-                                if fullmatch(pattern, cand_codon) is not None:
-                                    matching_codon = cand_codon
-                                    break
-                            if matching_codon == '':
-                                # This should never happen.
-                                raise ValueError('No matching codon found for'
-                                                 ' end_dna.')
-
-                            oh_seq = oh_end.seq.lower()
-                            amino_overhang = (matching_codon[:begin_dot]
-                                              + oh_seq)
+                            amino_overhang = matching_codon[
+                                             :begin_dot] + oh_end.seq.lower()
                         else:
-                            amino_overhang = oh_start.seq.lower()
-
+                            amino_overhang = oh_end.seq.lower()
                         end_dna = amino_overhang + resenz.rev_restriction_site
 
-                    # Add gg sites.
                     block_seq = Seq(beg_dna + dna_block_internal + end_dna)
-
-                    # TODO: Maybe want to change description to include block
-                    # info?
-                    block_name = parent_sr.id + f'_block-{blk_num}'
-                    block_sr = SeqRecord(
-                        block_seq,
-                        id=block_name,
-                        name=block_name,
-                        description=parent_sr.description
-                    )
-
+                    block_name = f'{parent_sr.id}_block-{blk_num}'
+                    block_sr = SeqRecord(block_seq, id=block_name,
+                                         name=block_name,
+                                         description=f'{parent_sr.description}'
+                                                     f' | block {blk_num}')
                     par_blocks.append(block_sr)
 
                 dna_blocks.extend(par_blocks)
 
-            # Cache so that the generated blocks don't change.
             self._dna_blocks = dna_blocks
-
             return dna_blocks
 
     def find_best_overhangs(self) -> None:
